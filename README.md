@@ -12,8 +12,9 @@ One place to **install, update and start** the applications of the Dwarfium fami
 - **Latest versions** — reads each application's latest GitHub release and compares it with the installed one; **What's new** shows the release notes.
 - **Install / update** — downloads this system's build (with progress), checks its SHA-256, and lays it over the installation **file by file**: only program files are replaced, **your data is never touched** (devices, configs, sessions, database, settings, `.nicegui` storage…).
 - **Rollback** — the files an update replaced are kept, *Back to <version>* restores them.
-- **Existing installations** — *Use an existing installation* adopts a folder installed by hand instead of reinstalling it (its data stays where it is).
-- **Start / stop** — each application starts from its own folder on a **fixed port** (Scope Archive 8080, Dwarfium Lite 8090, editable), alone or both together; closing the hub leaves them running.
+- **Existing installations** — *Use an existing installation* adopts a folder installed by hand instead of reinstalling it (its data stays where it is); its version is read from the application the first time it runs.
+- **Start / stop** — each application starts from its own folder on a **fixed port** (Scope Archive 8080, Dwarfium Lite 8090, editable), alone or both together; closing the hub leaves them running. The hub asks the port which application answers (`/api/app-info`): another program on that port is shown as such, and the application isn't started over it.
+- **LAN access** — Scope Archive can be started reachable from the other devices of the network (`--lan`); Dwarfium Lite always is.
 - English / French.
 
 Coming next: one view of the Dwarfs of both applications — link them, create a Dwarf of one application in the other, keep their names and IPs in sync.
