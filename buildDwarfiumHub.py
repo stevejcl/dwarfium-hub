@@ -21,7 +21,7 @@ for folder in (DIST_DIR, BUILD_DIR):
     if folder.exists():
         shutil.rmtree(folder)
 
-# version.py from the first [X.Y.Z] of CHANGELOG.md (hub/version.py reads it when frozen)
+# version.py from the first [X.Y.Z] of CHANGELOG.md (hub/app_version.py reads it when frozen)
 version = "Unknown"
 m = re.search(r"\[V?([\d.]+[a-z]?)\]", Path("CHANGELOG.md").read_text(encoding="utf-8"))
 if m:
