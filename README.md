@@ -17,7 +17,20 @@ One place to **install, update and start** the applications of the Dwarfium fami
 - **LAN access** — Scope Archive can be started reachable from the other devices of the network (`--lan`); Dwarfium Lite always is.
 - English / French.
 
-Coming next: one view of the Dwarfs of both applications — link them, create a Dwarf of one application in the other, keep their names and IPs in sync.
+## Dwarfs
+
+The **Dwarfs** tab shows the Dwarfs of both applications side by side. Linked, a Dwarf opens from one application to the other (Scope Archive's sessions, tonight's plan in Dwarfium Lite…).
+
+| On screen | What the hub offers |
+|---|---|
+| **Linked** | copy the name or the IP from one side to the other when they differ; unlink |
+| **Same Dwarf?** (same IP, else same name, same model) | link — or link all the suggestions at once |
+| **Not in Scope Archive** | create it there, already linked (or all of them); or link it to a Dwarf picked in the list |
+| **Not in Dwarfium Lite** | open Dwarfium Lite's manual configuration filled in (name, model, IP); its UID and Site are entered there, and it is saved linked |
+| **Broken link** | the Scope Archive Dwarf no longer exists: create it again, link to another one, or unlink |
+| *nothing at all* | add the first Dwarf in Dwarfium Lite (Bluetooth pairing or manual configuration), then create it in Scope Archive here |
+
+Dwarfium Lite reads its Dwarfs when it starts: its side is only changed while it is stopped, and only the lines concerned (`dwarfium_id`, `dwarfium_base_url` in `config_*.ini`, `DWARF_IP`, the name in `devices.json`). Scope Archive's database is copied to `db/dwarf_backup.db.hub` before the hub's first change.
 
 ## Install
 

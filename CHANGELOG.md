@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.1] - 2026-10-13
+  ### Add
+    ### Dwarfs tab
+    The Dwarfs of Dwarfium Lite and of Scope Archive side by side: linked, "same Dwarf?" (same IP, else same name,
+    never two models), broken link, or on one side only. Link (one or all suggestions, or to a Dwarf picked in a
+    list), unlink, create in Scope Archive (one or all) already linked, copy a name or an IP from one side to the
+    other. A Dwarf only Scope Archive knows opens Dwarfium Lite's manual configuration filled in (its UID and Site
+    are entered there), saved linked. Nothing configured yet: Bluetooth pairing or manual configuration in Dwarfium
+    Lite first. Dwarfium Lite's files are only changed while it is stopped (only the lines concerned); Scope
+    Archive's database is copied to db/dwarf_backup.db.hub before the hub's first change.
+
 ## [0.1.0] - 2026-10-13
   ### Add
     ### First version
