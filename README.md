@@ -33,6 +33,8 @@ The **Dwarfs** tab shows the Dwarfs of both applications side by side. Linked, a
 
 **ID** — which physical Dwarf: the last 6 characters of the MAC address printed on it. They also end its Bluetooth name (Dwarfium Lite's UID, e.g. `DWARF3_A1B2C3`), and Scope Archive (V3.4.3+) keeps them on its Dwarf page — typed from the label, or read from the Dwarf at its IP. Same ID on both sides: the same Dwarf for sure; two different IDs are never suggested together.
 
+**Identify** — several Dwarfs on the table: the ✳ button of a row flashes that Dwarf's ring light (through Dwarfium Lite, never during a capture). Dwarfium Lite's pages (manual configuration, pairing) open in its own window.
+
 Dwarfium Lite reads its Dwarfs when it starts: its side is only changed while it is stopped, and only the lines concerned (`dwarfium_id`, `dwarfium_base_url` in `config_*.ini`, `DWARF_IP`, the name in `devices.json`). Scope Archive's database is copied to `db/dwarf_backup.db.hub` before the hub's first change.
 
 ## Install

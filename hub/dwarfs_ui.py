@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 from nicegui import run, ui
 
 from hub import dwarfs as D
+from hub import lite_api
 from hub import runner
 from hub.i18n import t
 
@@ -123,17 +124,37 @@ class DwarfsView:
                      (lambda: D.set_lite_ip(self.lite.folder, lite, archive.ip))
         await self._do(action, t("dw_copied_ok"))
 
+    async def _lite_up(self) -> bool:
+        """Dwarfium Lite running, started first if needed."""
+        if self.lite.running:
+            return True
+        if self.lite.state is not None and self.lite.state.state == runner.OTHER:
+            self.page.notify(t("port_other", port=self.lite.port), type="warning")
+            return False
+        self.page.notify(t("dw_starting_lite"), type="info")
+        return await self.lite.start(notify=False)
+
     async def open_lite_page(self, path: str, params: dict | None = None) -> None:
-        """A page of Dwarfium Lite in the browser, started first if needed."""
-        if not self.lite.running:
-            if self.lite.state is not None and self.lite.state.state == runner.OTHER:
-                self.page.notify(t("port_other", port=self.lite.port), type="warning")
-                return
-            self.page.notify(t("dw_starting_lite"), type="info")
-            if not await self.lite.start(notify=False):
-                return
-        query = f"?{urlencode(params)}" if params else ""
-        webbrowser.open(f"http://localhost:{self.lite.port}{path}{query}")
+        """A page of Dwarfium Lite, started first if needed: in its own window
+        (3.2.4+), else in the browser - said where either way."""
+        if not await self._lite_up():
+            return
+        target = path + (f"?{urlencode(params)}" if params else "")
+        if await run.io_bound(lite_api.open_page, self.lite.port, target):
+            self.page.notify(t("dw_opened_in_lite"), type="positive")
+        else:
+            webbrowser.open(f"http://localhost:{self.lite.port}{target}")
+            self.page.notify(t("dw_opened_in_browser"), type="info", multi_line=True)
+
+    async def identify(self, ip: str) -> None:
+        """The Dwarf's ring light flashes - through Dwarfium Lite, which
+        refuses during a capture."""
+        if not await self._lite_up():
+            return
+        self.page.notify(t("identify_running"), type="info")
+        result = await run.io_bound(lite_api.identify, self.lite.port, ip)
+        self.page.notify(t(f"identify_{result}", ip=ip), type="positive" if result == "ok" else "warning",
+                         multi_line=True)
 
     async def add_to_lite(self, row: D.Row) -> None:
         a = row.archive
@@ -197,6 +218,10 @@ class DwarfsView:
                     self._empty_side("Scope Archive", t("dw_none"))
 
             with ui.row().classes("w-full items-center gap-2 flex-wrap justify-end"):
+                ip = (row.lite.ip if row.lite else "") or (row.archive.ip if row.archive else "")
+                if ip:      # left of the row's actions
+                    ui.button(icon="flare", on_click=lambda i=ip: self.identify(i)) \
+                        .props("flat round dense").classes("mr-auto").tooltip(t("identify_hint", ip=ip))
                 if row.status == D.SUGGESTED:
                     if row.differences:
                         ui.label(t("dw_differs", what=", ".join(t(f"dw_{d}") for d in row.differences))) \
