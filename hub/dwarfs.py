@@ -71,11 +71,27 @@ class ArchiveDwarf:
 
 
 def normalize_ble_id(text: str | None) -> str:
-    """The last 6 hex digits (upper case) of a MAC address or a Bluetooth
-    name - the same rule as Scope Archive's api/dwarf_identity.py."""
-    compact = re.sub(r"[\s:.\-]", "", (text or "").strip())
-    m = re.search(r"([0-9A-Fa-f]{6})$", compact)
-    return m.group(1).upper() if m else ""
+    """The 6 hex digits (upper case), "" when the text doesn't give them -
+    the same rule as Scope Archive's api/dwarf_identity.py: after the last
+    "_" of a Bluetooth name (DWARF3_3C2E2A, DWARF_mini_19A608) exactly 6
+    hex digits, else the 6 digits themselves or a whole MAC address."""
+    text = (text or "").strip()
+    if "_" in text:
+        tail = text.rsplit("_", 1)[1]
+        return tail.upper() if re.fullmatch(r"[0-9A-Fa-f]{6}", tail) else ""
+    compact = re.sub(r"[\s:.\-]", "", text)
+    if re.fullmatch(r"[0-9A-Fa-f]{6}", compact):
+        return compact.upper()
+    if re.fullmatch(r"[0-9A-Fa-f]{12}", compact):
+        return compact[-6:].upper()
+    return ""
+
+
+def ble_id_from_bluetooth_name(text: str | None) -> str:
+    """The identifier when the whole text is a Dwarf Bluetooth name - a
+    Scope Archive before V3.4.3, where it was noted as the description."""
+    text = (text or "").strip()
+    return normalize_ble_id(text) if re.fullmatch(r"DWARF\w*_[0-9A-Fa-f]{6}", text, flags=re.IGNORECASE) else ""
 
 
 LINKED, MISMATCH, BROKEN, SUGGESTED, LITE_ONLY, ARCHIVE_ONLY = (
@@ -239,7 +255,7 @@ def read_archive(folder: Path) -> list[ArchiveDwarf] | None:
     except sqlite3.Error as e:
         raise DwarfsError(f"Scope Archive database: {e}")
     return [ArchiveDwarf(id=r[0], name=r[1] or "", model=str(r[2] or ""), ip=r[3] or "", description=r[4] or "",
-                         ble_id=normalize_ble_id(r[5])) for r in rows]
+                         ble_id=normalize_ble_id(r[5]) or ble_id_from_bluetooth_name(r[4])) for r in rows]
 
 
 def archive_has_ble_id(folder: Path) -> bool:
