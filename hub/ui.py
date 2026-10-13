@@ -137,19 +137,7 @@ class AppCard:
     async def adopt(self) -> None:
         """Use an installation made outside the hub (keeps its data)."""
         exe = exe_name(self.spec)
-        chosen = None
-        if app.native.main_window is not None:
-            import webview
-            result = await app.native.main_window.create_file_dialog(webview.FOLDER_DIALOG)
-            chosen = result[0] if result else None
-        else:
-            with self.page.dialog_host, ui.dialog() as dialog, ui.card().classes("min-w-[420px]"):
-                ui.label(t("adopt_hint", exe=exe))
-                path_input = ui.input().classes("w-full")
-                with ui.row().classes("justify-end w-full"):
-                    ui.button(t("cancel"), on_click=lambda: dialog.submit(None)).props("flat")
-                    ui.button(t("ok"), on_click=lambda: dialog.submit(path_input.value))
-            chosen = await dialog
+        chosen = await self.page.pick_folder(t("adopt_hint", exe=exe), str(self.folder.parent))
         if not chosen:
             return
         if not (Path(chosen) / exe).is_file():
@@ -252,12 +240,33 @@ class HubPage:
         config.save(self.cfg)
         ui.navigate.reload()
 
-    async def change_root(self) -> None:
-        chosen = None
+    async def pick_folder(self, hint: str, start: str | None = None) -> str | None:
+        """A folder: the system dialog in the hub's window, else (browser,
+        or the dialog failed) a path typed in a small dialog."""
         if app.native.main_window is not None:
-            import webview
-            result = await app.native.main_window.create_file_dialog(webview.FOLDER_DIALOG)
-            chosen = result[0] if result else None
+            try:
+                import webview
+                # FileDialog.FOLDER since pywebview 5; FOLDER_DIALOG before
+                mode = webview.FileDialog.FOLDER if hasattr(webview, "FileDialog") else webview.FOLDER_DIALOG
+                kwargs = {"allow_multiple": False}
+                if start and os.path.isdir(start):
+                    kwargs["directory"] = start
+                result = await app.native.main_window.create_file_dialog(mode, **kwargs)
+                if not result:
+                    return None
+                return result if isinstance(result, str) else result[0]
+            except Exception as e:  # the typed path below still works
+                print(f"[hub] folder dialog failed: {e!r}")
+        with self.dialog_host, ui.dialog() as dialog, ui.card().classes("min-w-[460px]"):
+            ui.label(hint)
+            path_input = ui.input(value=start or "").classes("w-full")
+            with ui.row().classes("justify-end w-full"):
+                ui.button(t("cancel"), on_click=lambda: dialog.submit(None)).props("flat")
+                ui.button(t("ok"), on_click=lambda: dialog.submit(path_input.value.strip()))
+        return await dialog
+
+    async def change_root(self) -> None:
+        chosen = await self.pick_folder(t("install_root"), self.cfg["install_root"])
         if chosen:
             self.cfg["install_root"] = chosen
             config.save(self.cfg)
