@@ -17,3 +17,6 @@
     ### Starting state
     An application the hub started shows "Starting…" until it answers (a one-file build unpacks itself first and
     can take a while), instead of "Running" then "Stopped"; Stop cancels the start.
+    ### Start both: side by side
+    Both applications start together, 5 s apart (Scope Archive first), instead of one after the other. Two
+    applications can't be given the same port: the port field says "Taken", and starting is refused.
