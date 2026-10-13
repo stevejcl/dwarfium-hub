@@ -16,7 +16,14 @@
     Dwarf (verified)"), never suggested between two different identifiers (nor offered in "Link to…"); a linked pair
     with two different identifiers is shown as "Not the same Dwarf!"; "ID → Scope Archive" copies it to a linked
     Dwarf that lacks it; "Create in Scope Archive" copies it too. "Add to Dwarfium Lite": with the Dwarf on the
-    network, Dwarfium Lite (3.2.4) reads its UID and model from its IP - only the Site is left to choose. Exact forms only (6 hex digits after the
+    network, Dwarfium Lite (3.2.4) reads its UID and model from its IP - only the Site is left to choose.
+    ### Identify a Dwarf
+    A button on each row of the Dwarfs tab flashes the Dwarf's ring light, to see which one it is when several are on
+    - through Dwarfium Lite (3.2.4+, started if needed), which refuses during a capture; each outcome is said.
+    ### Dwarfium Lite's pages in its own window
+    "Add to Dwarfium Lite", "Pair by Bluetooth" and "Manual configuration" open the page in Dwarfium Lite's own window,
+    brought to the front (3.2.4+), instead of a browser tab one could miss; the browser stays the fallback, and the hub
+    says where the page opened. Exact forms only (6 hex digits after the
     Bluetooth name's last "_", the 6 digits, or a whole MAC address); with a Scope Archive before V3.4.3, a
     description that is the Dwarf's Bluetooth name gives it.
 
