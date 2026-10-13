@@ -28,7 +28,7 @@ def main() -> None:
     from nicegui import ui
 
     from hub import ui as hub_ui
-    from hub.version import get_version
+    from hub.app_version import get_version
 
     hub_ui.register()
     native = not args.no_native

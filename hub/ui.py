@@ -18,7 +18,7 @@ from nicegui import app, run, ui
 from hub import config, installer, releases, runner
 from hub.apps import APPS, AppSpec, exe_name
 from hub.i18n import language, set_language, system_language, t
-from hub.version import get_version
+from hub.app_version import get_version
 
 
 class AppCard:
