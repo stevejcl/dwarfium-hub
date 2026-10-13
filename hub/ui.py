@@ -7,6 +7,7 @@ window never freezes.
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import sys
@@ -144,6 +145,11 @@ class AppCard:
         await self.update_state()
         if self.active:
             return True
+        clash = self.page.port_clash(self, self.port)
+        if clash:
+            self.notify(t("port_taken_start", name=self.spec.name, port=self.port, other=clash.spec.name),
+                        type="warning", multi_line=True)
+            return False
         if self.state.state == runner.OTHER:
             self.notify(t("port_other_start", name=self.spec.name, port=self.port), type="warning", multi_line=True)
             self.render.refresh()
@@ -210,7 +216,7 @@ class AppCard:
             port = int(value)
         except (TypeError, ValueError):
             return
-        if 1024 <= port <= 65535:
+        if 1024 <= port <= 65535 and not self.page.port_clash(self, port):
             self.settings["port"] = port
             config.save(self.page.cfg)
 
@@ -288,10 +294,14 @@ class AppCard:
                 if rel:
                     ui.button(t("whats_new"), icon="article", on_click=self.show_notes).props("flat")
                 ui.number(t("port"), value=self.port, min=1024, max=65535, format="%d",
-                          on_change=lambda e: self.set_port(e.value)).classes("w-16").props("dense")
+                          validation={t("port_taken"): lambda v: not self.page.port_clash(self, v)},
+                          on_change=lambda e: self.set_port(e.value)).classes("w-16").props("dense no-error-icon")
                 if self.spec.lan_args:
                     ui.checkbox(t("lan"), value=self.lan, on_change=lambda e: self.set_lan(e.value)) \
                         .tooltip(t("lan_hint"))
+
+
+START_GAP_S = 5     # between the apps of "Start both"
 
 
 class HubPage:
@@ -300,11 +310,30 @@ class HubPage:
         set_language(self.cfg.get("language") or system_language())
         self.cards = [AppCard(self, spec) for spec in APPS]
 
+    def port_clash(self, card: AppCard, port) -> AppCard | None:
+        """The other installed application already given this port."""
+        try:
+            port = int(port)
+        except (TypeError, ValueError):
+            return None
+        return next((c for c in self.cards if c is not card and c.installed() and c.port == port), None)
+
     async def start_both(self) -> None:
-        for card in self.cards:   # Scope Archive first: Dwarfium Lite says hello to it
-            if card.installed():
-                await card.start(notify=False)
-        ui.notify(", ".join(c.spec.name for c in self.cards if c.installed()), type="positive")
+        """Together, a few seconds apart: Scope Archive first, Dwarfium Lite
+        then says hello to it (and retries every 10 s while it isn't up)."""
+        cards = [c for c in self.cards if c.installed()]
+        ports = [c.port for c in cards]
+        if len(set(ports)) < len(ports):
+            ui.notify(t("same_port"), type="warning", multi_line=True)
+            return
+
+        async def start(card: AppCard, delay: float) -> bool:
+            await asyncio.sleep(delay)
+            return await card.start(notify=False)
+        results = await asyncio.gather(*(start(c, i * START_GAP_S) for i, c in enumerate(cards)))
+        started = [c.spec.name for c, ok in zip(cards, results) if ok]
+        if started:
+            ui.notify(t("started_list", names=", ".join(started)), type="positive")
 
     async def stop_both(self) -> None:
         for card in reversed(self.cards):
