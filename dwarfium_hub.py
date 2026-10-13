@@ -33,7 +33,9 @@ def main() -> None:
     hub_ui.register()
     native = not args.no_native
     # window_size alone turns native mode on: only given with a window
-    window = {"native": True, "window_size": (980, 820)} if native else {"native": False, "show": True}
+    # 980 high: both applications' cards (909 px) + the title bar, with room for an
+    # update / rollback button wrapping, without a scrollbar
+    window = {"native": True, "window_size": (1000, 980)} if native else {"native": False, "show": True}
     ui.run(
         title=f"Dwarfium-Hub {get_version()}",
         host="127.0.0.1",

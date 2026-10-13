@@ -29,7 +29,9 @@
     Creating an application's process ran in the hub's own loop: on Windows it can take seconds for a big one-file
     executable (the antivirus scans it first), during which the hub's window lost its server - twice with Start both.
     The process is now created in a worker thread (opening a folder or the browser too), and the card says
-    "Starting..." at once. Exact forms only (6 hex digits after the
+    "Starting..." at once.
+    ### Taller window
+    1000 x 980 instead of 980 x 820: both applications' cards fit without a scrollbar. Exact forms only (6 hex digits after the
     Bluetooth name's last "_", the 6 digits, or a whole MAC address); with a Scope Archive before V3.4.3, a
     description that is the Dwarf's Bluetooth name gives it.
 
