@@ -8,7 +8,9 @@ Scope Archive's db/). Before that, each file the zip replaces is copied
 to <install>/.hub_backup/ (one previous version kept): rollback() puts
 them back and removes the files the update added.
 
-<install>/.hub_version.json records the version the hub installed.
+<install>/.hub_version.json records the version the hub installed - or,
+for an installation made outside the hub, the version the running app
+gave (record_running_version).
 """
 from __future__ import annotations
 
@@ -47,6 +49,17 @@ def _write_json(path: Path, data: dict) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
     os.replace(tmp, path)
+
+
+def record_running_version(target: Path, version: str) -> bool:
+    """The version a running app gave (GET /api/app-info) is the one
+    installed: recorded when it differs (an installation made outside
+    the hub, or updated by hand). True when something was written."""
+    if not version or installed_version(target) == version:
+        return False
+    _write_json(target / VERSION_FILE, {"version": version, "detected_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                        "detected": True})
+    return True
 
 
 def has_backup(target: Path) -> str | None:

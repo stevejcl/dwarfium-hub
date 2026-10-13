@@ -31,6 +31,13 @@ class AppSpec:
     # Updated by the hub; False for an app that updates itself (the hub
     # then only installs it the first time and starts it)
     hub_updates: bool = True
+    # Name the app gives in GET /api/app-info: tells it from another
+    # program on its port, and gives its version
+    app_key: str = ""
+    # Apps older than /api/app-info: (path, JSON key) only this app answers
+    legacy_probe: tuple[str, str] | None = None
+    # Extra arguments of the "LAN access" option; () = no such option
+    lan_args: tuple[str, ...] = ()
     description: str = ""
     extra: dict = field(default_factory=dict)
 
@@ -44,6 +51,9 @@ APPS: tuple[AppSpec, ...] = (
         exe="DwarfiumScopeArchive",
         default_port=8080,          # Dwarfium Lite's default Scope Archive URL is http://localhost:8080
         folder="DwarfiumScopeArchive",
+        app_key="dwarfium_scope_archive",
+        legacy_probe=("/api/peer/status", "astroDwarfSession"),
+        lan_args=("--lan",),        # localhost only otherwise
         description="Archive, explore and plan your Dwarf sessions",
     ),
     AppSpec(
@@ -54,6 +64,9 @@ APPS: tuple[AppSpec, ...] = (
         exe="AstroDwarfUI",
         default_port=8090,
         folder="AstroDwarfSession",
+        app_key="astro_dwarf_session",
+        legacy_probe=("/api/dwarfs", "devices"),
+        # Always reachable from the LAN (binds 0.0.0.0): no LAN option
         description="Control your Dwarfs, programs and schedules",
     ),
 )

@@ -7,3 +7,10 @@
     releases: latest version check, download with progress and SHA-256 check, update that only replaces the
     program files (user data never touched), previous version kept for a rollback, fixed ports, start / stop one
     app or both. An existing installation can be adopted instead of reinstalled.
+    ### Which application answers on a port
+    The hub asks the port (GET /api/app-info, older versions recognised by their own API): another program on the
+    port is shown as "Port X used by another program" and the application isn't started over it, instead of being
+    taken for the application. The version of an adopted installation is read from the running application and
+    recorded.
+    ### LAN access
+    Option to start Dwarfium Scope Archive reachable from the other devices of the network (--lan).

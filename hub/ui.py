@@ -29,7 +29,14 @@ class AppCard:
         self.busy = False
         self.progress_value = 0.0
         self.progress_text = ""
-        self.last_running: bool | None = None
+        # What answers on the app's port (runner.probe), None until asked
+        self.state: runner.Probe | None = None
+
+    def notify(self, *args, **kwargs) -> None:
+        # From the page, not the card: an action may have rebuilt the card
+        # (and the button it was started from) meanwhile
+        with self.page.dialog_host:
+            ui.notify(*args, **kwargs)
 
     # ── settings ──────────────────────────────────────────────────────────
     @property
@@ -51,6 +58,26 @@ class AppCard:
     def installed_version(self) -> str | None:
         return installer.installed_version(self.folder)
 
+    @property
+    def running(self) -> bool:
+        return self.state is not None and self.state.state == runner.RUNNING
+
+    def _probe(self) -> runner.Probe:
+        """Blocking. The version the running app gives is recorded for an
+        installation the hub didn't make (no version file)."""
+        if not self.installed():
+            return runner.Probe(runner.STOPPED)
+        state = runner.probe(self.spec, self.port)
+        if state.state == runner.RUNNING and state.version:
+            installer.record_running_version(self.folder, state.version)
+        return state
+
+    async def update_state(self) -> bool:
+        """Asks the app's port again; True when something changed."""
+        before = (self.state, self.installed_version())
+        self.state = await run.io_bound(self._probe)
+        return (self.state, self.installed_version()) != before
+
     # ── release ───────────────────────────────────────────────────────────
     async def check_release(self) -> None:
         try:
@@ -65,8 +92,9 @@ class AppCard:
         rel = self.release
         if not rel or not rel.asset_url:
             return
-        if self.installed() and runner.is_running(self.spec, self.port):
-            ui.notify(t("stop_first", name=self.spec.name), type="warning")
+        await self.update_state()
+        if self.running:
+            self.notify(t("stop_first", name=self.spec.name), type="warning")
             return
         self.busy, self.progress_value, self.progress_text = True, 0, t("downloading", v=rel.version)
         self.render.refresh()
@@ -85,9 +113,9 @@ class AppCard:
             self.settings["path"] = str(self.folder)
             self.settings.setdefault("port", self.spec.default_port)
             config.save(self.page.cfg)
-            ui.notify(t("installed_ok", name=self.spec.name, v=rel.version), type="positive")
+            self.notify(t("installed_ok", name=self.spec.name, v=rel.version), type="positive")
         except Exception as e:
-            ui.notify(t("failed", e=e), type="negative", multi_line=True)
+            self.notify(t("failed", e=e), type="negative", multi_line=True)
         finally:
             self.busy = False
             for f in tmp_dir.glob("*"):
@@ -96,35 +124,46 @@ class AppCard:
             self.render.refresh()
 
     async def rollback(self) -> None:
-        if runner.is_running(self.spec, self.port):
-            ui.notify(t("stop_first", name=self.spec.name), type="warning")
+        await self.update_state()
+        if self.running:
+            self.notify(t("stop_first", name=self.spec.name), type="warning")
             return
         try:
             version = await run.io_bound(installer.rollback, self.folder)
-            ui.notify(t("rolled_back", name=self.spec.name, v=version or "?"), type="positive")
+            self.notify(t("rolled_back", name=self.spec.name, v=version or "?"), type="positive")
         except Exception as e:
-            ui.notify(t("failed", e=e), type="negative")
+            self.notify(t("failed", e=e), type="negative")
         self.render.refresh()
 
     async def start(self, notify: bool = True) -> bool:
-        if runner.is_running(self.spec, self.port):
+        await self.update_state()
+        if self.running:
             return True
-        try:
-            runner.start(self.spec, self.folder, self.port)
-        except Exception as e:
-            ui.notify(t("start_failed", name=self.spec.name, e=e), type="negative")
+        if self.state.state == runner.OTHER:
+            self.notify(t("port_other_start", name=self.spec.name, port=self.port), type="warning", multi_line=True)
+            self.render.refresh()
             return False
+        try:
+            runner.start(self.spec, self.folder, self.port, lan=self.lan)
+        except Exception as e:
+            self.notify(t("start_failed", name=self.spec.name, e=e), type="negative")
+            return False
+        self.state = runner.Probe(runner.RUNNING)
         self.render.refresh()
-        up = await run.io_bound(runner.wait_until_up, self.port, 90)
+        self.state = await run.io_bound(runner.wait_until_up, self.spec, self.port, 90)
+        await self.update_state()       # records the version it gives
+        up = self.running
         if notify:
-            ui.notify(t("started", name=self.spec.name) if up else
+            self.notify(t("started", name=self.spec.name) if up else
                       t("start_failed", name=self.spec.name, e="timeout"), type="positive" if up else "warning")
         self.render.refresh()
         return up
 
-    def stop(self) -> None:
-        if not runner.stop(self.spec) and runner.is_running(self.spec, self.port):
-            ui.notify(t("stop_outside", name=self.spec.name), type="warning")
+    async def stop(self) -> None:
+        stopped = await run.io_bound(runner.stop, self.spec)
+        await self.update_state()
+        if not stopped and self.running:
+            self.notify(t("stop_outside", name=self.spec.name), type="warning")
         self.render.refresh()
 
     def open_folder(self) -> None:
@@ -141,11 +180,21 @@ class AppCard:
         if not chosen:
             return
         if not (Path(chosen) / exe).is_file():
-            ui.notify(t("adopt_bad", exe=exe), type="warning")
+            self.notify(t("adopt_bad", exe=exe), type="warning")
             return
         self.settings["path"] = str(Path(chosen))
         config.save(self.page.cfg)
         self.render.refresh()
+
+    @property
+    def lan(self) -> bool:
+        return bool(self.spec.lan_args) and bool(self.settings.get("lan"))
+
+    def set_lan(self, value: bool) -> None:
+        self.settings["lan"] = bool(value)
+        config.save(self.page.cfg)
+        if self.running:
+            self.notify(t("lan_restart", name=self.spec.name), type="info")
 
     def set_port(self, value) -> None:
         try:
@@ -173,16 +222,23 @@ class AppCard:
     @ui.refreshable_method
     def render(self) -> None:
         installed, version = self.installed(), self.installed_version()
-        running = installed and runner.is_running(self.spec, self.port)
-        self.last_running = running
+        state = self.state.state if installed and self.state else None
+        running, other = state == runner.RUNNING, state == runner.OTHER
         rel = self.release
         with ui.card().classes("w-full"):
             with ui.row().classes("items-start justify-between w-full"):
                 with ui.column().classes("gap-0"):
                     ui.label(self.spec.name).classes("text-lg font-semibold")
                     ui.label(t(f"desc_{self.spec.id}")).classes("text-sm text-gray-500")
-                ui.badge(t("running", port=self.port) if running else t("stopped"),
-                         color="positive" if running else "grey").classes("text-sm")
+                if running:
+                    ui.badge(t("running", port=self.port), color="positive").classes("text-sm")
+                elif other:
+                    ui.badge(t("port_other", port=self.port), color="warning").classes("text-sm") \
+                        .tooltip(t("port_other_hint"))
+                elif installed and state is None:
+                    ui.badge(t("checking"), color="grey").classes("text-sm")
+                else:
+                    ui.badge(t("stopped"), color="grey").classes("text-sm")
             with ui.row().classes("gap-6 text-sm"):
                 ui.label(f"{t('installed')} : " + ((version or t("unknown_version")) if installed else t("not_installed")))
                 ui.label(f"{t('latest')} : " + (f"{rel.version} ({rel.published})" if rel else (self.release_error or t("checking"))))
@@ -206,7 +262,10 @@ class AppCard:
                     if running:
                         ui.button(t("stop"), icon="stop", on_click=self.stop).props("color=negative")
                     else:
-                        ui.button(t("start"), icon="play_arrow", on_click=self.start).props("color=positive")
+                        start = ui.button(t("start"), icon="play_arrow", on_click=self.start).props("color=positive")
+                        start.set_enabled(not other)
+                        if other:
+                            start.tooltip(t("port_other_hint"))
                     ui.button(t("open_folder"), icon="folder", on_click=self.open_folder).props("flat")
                     previous = installer.has_backup(self.folder)
                     if previous:
@@ -215,7 +274,10 @@ class AppCard:
                 if rel:
                     ui.button(t("whats_new"), icon="article", on_click=self.show_notes).props("flat")
                 ui.number(t("port"), value=self.port, min=1024, max=65535, format="%d",
-                          on_change=lambda e: self.set_port(e.value)).classes("w-24").props("dense")
+                          on_change=lambda e: self.set_port(e.value)).classes("w-16").props("dense")
+                if self.spec.lan_args:
+                    ui.checkbox(t("lan"), value=self.lan, on_change=lambda e: self.set_lan(e.value)) \
+                        .tooltip(t("lan_hint"))
 
 
 class HubPage:
@@ -230,10 +292,10 @@ class HubPage:
                 await card.start(notify=False)
         ui.notify(", ".join(c.spec.name for c in self.cards if c.installed()), type="positive")
 
-    def stop_both(self) -> None:
+    async def stop_both(self) -> None:
         for card in reversed(self.cards):
             if card.installed():
-                card.stop()
+                await card.stop()
 
     def set_language(self, lang: str) -> None:
         self.cfg["language"] = lang
@@ -296,18 +358,23 @@ class HubPage:
         self.dialog_host = ui.element()
         for card in self.cards:
             ui.timer(0.1, card.check_release, once=True)
+        self._watching = False
+        ui.timer(0.1, self.watch_running, once=True)
         ui.timer(3, self.watch_running)
 
-    def watch_running(self) -> None:
-        """A card is rebuilt only when its app started or stopped (also from
-        outside the hub): rebuilding it every time would close its dialogs
-        and lose a port being typed."""
-        for card in self.cards:
-            if card.busy:
-                continue
-            running = card.installed() and runner.is_running(card.spec, card.port)
-            if running != card.last_running:
-                card.render.refresh()
+    async def watch_running(self) -> None:
+        """A card is rebuilt only when what answers on its port changed
+        (its app started or stopped, also outside the hub): rebuilding it
+        every time would close its dialogs and lose a port being typed."""
+        if self._watching:      # a slow answer: the previous round still runs
+            return
+        self._watching = True
+        try:
+            for card in self.cards:
+                if not card.busy and await card.update_state() and not card.busy:
+                    card.render.refresh()
+        finally:
+            self._watching = False
 
 
 def register() -> None:
