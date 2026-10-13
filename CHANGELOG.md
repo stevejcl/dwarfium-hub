@@ -10,6 +10,15 @@
     are entered there), saved linked. Nothing configured yet: Bluetooth pairing or manual configuration in Dwarfium
     Lite first. Dwarfium Lite's files are only changed while it is stopped (only the lines concerned); Scope
     Archive's database is copied to db/dwarf_backup.db.hub before the hub's first change.
+    ### Dwarf identifier
+    Which physical Dwarf: the last 6 characters of the MAC address printed on it, which also end its Bluetooth name
+    (Dwarfium Lite's UID) and are Scope Archive's identifier (V3.4.3+). Shown on both sides; matched first ("Same
+    Dwarf (verified)"), never suggested between two different identifiers (nor offered in "Link to…"); a linked pair
+    with two different identifiers is shown as "Not the same Dwarf!"; "ID → Scope Archive" copies it to a linked
+    Dwarf that lacks it; "Create in Scope Archive" copies it too. "Add to Dwarfium Lite": with the Dwarf on the
+    network, Dwarfium Lite (3.2.4) reads its UID and model from its IP - only the Site is left to choose. Exact forms only (6 hex digits after the
+    Bluetooth name's last "_", the 6 digits, or a whole MAC address); with a Scope Archive before V3.4.3, a
+    description that is the Dwarf's Bluetooth name gives it.
 
 ## [0.1.0] - 2026-10-13
   ### Add
