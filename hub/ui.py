@@ -29,6 +29,7 @@ class AppCard:
         self.release: releases.Release | None = None
         self.release_error = ""
         self.busy = False
+        self.launching = False          # its process being created (start())
         self.progress_value = 0.0
         self.progress_text = ""
         # What answers on the app's port (runner.probe), None until asked
@@ -155,13 +156,22 @@ class AppCard:
             self.notify(t("port_other_start", name=self.spec.name, port=self.port), type="warning", multi_line=True)
             self.render.refresh()
             return False
+        # "Starting..." at once, and watch_running() leaves this card alone
+        # until the process exists (it would read "Stopped" meanwhile)
+        self.state, self.launching = runner.Probe(runner.STARTING), True
+        self.render.refresh()
         try:
-            runner.start(self.spec, self.folder, self.port, lan=self.lan)
+            # In a worker thread: on Windows, creating the process of a big
+            # one-file exe can take seconds (the antivirus scans it first) -
+            # the hub's window would lose its server meanwhile ("Connection lost")
+            await run.io_bound(runner.start, self.spec, self.folder, self.port, lan=self.lan)
         except Exception as e:
             self.notify(t("start_failed", name=self.spec.name, e=e), type="negative")
+            await self.update_state()
+            self.render.refresh()
             return False
-        self.state = runner.Probe(runner.STARTING)
-        self.render.refresh()
+        finally:
+            self.launching = False
         await run.io_bound(runner.wait_until_up, self.spec, self.port, 180)
         await self.update_state()       # records the version it gives
         self.render.refresh()
@@ -182,12 +192,15 @@ class AppCard:
             self.notify(t("stop_outside", name=self.spec.name), type="warning")
         self.render.refresh()
 
-    def open_folder(self) -> None:
+    async def open_folder(self) -> None:
         path = str(self.folder)
-        if sys.platform == "win32":
-            os.startfile(path)  # noqa: S606 - the user's own folder
-        else:
-            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", path])
+
+        def open_it() -> None:          # in a worker thread, like any process start
+            if sys.platform == "win32":
+                os.startfile(path)  # noqa: S606 - the user's own folder
+            else:
+                subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", path])
+        await run.io_bound(open_it)
 
     async def adopt(self) -> None:
         """Use an installation made outside the hub (keeps its data)."""
@@ -435,7 +448,9 @@ class HubPage:
         self._watching = True
         try:
             for card in self.cards:
-                if not card.busy and await card.update_state() and not card.busy:
+                if card.busy or card.launching:
+                    continue
+                if await card.update_state() and not (card.busy or card.launching):
                     card.render.refresh()
                     self.dwarfs.render.refresh()    # Dwarfium Lite running or not: its buttons
         finally:

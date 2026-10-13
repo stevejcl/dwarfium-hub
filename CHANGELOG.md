@@ -23,7 +23,13 @@
     ### Dwarfium Lite's pages in its own window
     "Add to Dwarfium Lite", "Pair by Bluetooth" and "Manual configuration" open the page in Dwarfium Lite's own window,
     brought to the front (3.2.4+), instead of a browser tab one could miss; the browser stays the fallback, and the hub
-    says where the page opened. Exact forms only (6 hex digits after the
+    says where the page opened.
+  ### Fix
+    ### "Connection lost" on Start both
+    Creating an application's process ran in the hub's own loop: on Windows it can take seconds for a big one-file
+    executable (the antivirus scans it first), during which the hub's window lost its server - twice with Start both.
+    The process is now created in a worker thread (opening a folder or the browser too), and the card says
+    "Starting..." at once. Exact forms only (6 hex digits after the
     Bluetooth name's last "_", the 6 digits, or a whole MAC address); with a Scope Archive before V3.4.3, a
     description that is the Dwarf's Bluetooth name gives it.
 

@@ -143,7 +143,7 @@ class DwarfsView:
         if await run.io_bound(lite_api.open_page, self.lite.port, target):
             self.page.notify(t("dw_opened_in_lite"), type="positive")
         else:
-            webbrowser.open(f"http://localhost:{self.lite.port}{target}")
+            await run.io_bound(webbrowser.open, f"http://localhost:{self.lite.port}{target}")
             self.page.notify(t("dw_opened_in_browser"), type="info", multi_line=True)
 
     async def identify(self, ip: str) -> None:
