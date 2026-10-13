@@ -62,6 +62,11 @@ class AppCard:
     def running(self) -> bool:
         return self.state is not None and self.state.state == runner.RUNNING
 
+    @property
+    def active(self) -> bool:
+        """Running or still starting."""
+        return self.state is not None and self.state.state in (runner.RUNNING, runner.STARTING)
+
     def _probe(self) -> runner.Probe:
         """Blocking. The version the running app gives is recorded for an
         installation the hub didn't make (no version file)."""
@@ -93,7 +98,7 @@ class AppCard:
         if not rel or not rel.asset_url:
             return
         await self.update_state()
-        if self.running:
+        if self.active:
             self.notify(t("stop_first", name=self.spec.name), type="warning")
             return
         self.busy, self.progress_value, self.progress_text = True, 0, t("downloading", v=rel.version)
@@ -125,7 +130,7 @@ class AppCard:
 
     async def rollback(self) -> None:
         await self.update_state()
-        if self.running:
+        if self.active:
             self.notify(t("stop_first", name=self.spec.name), type="warning")
             return
         try:
@@ -137,7 +142,7 @@ class AppCard:
 
     async def start(self, notify: bool = True) -> bool:
         await self.update_state()
-        if self.running:
+        if self.active:
             return True
         if self.state.state == runner.OTHER:
             self.notify(t("port_other_start", name=self.spec.name, port=self.port), type="warning", multi_line=True)
@@ -148,21 +153,25 @@ class AppCard:
         except Exception as e:
             self.notify(t("start_failed", name=self.spec.name, e=e), type="negative")
             return False
-        self.state = runner.Probe(runner.RUNNING)
+        self.state = runner.Probe(runner.STARTING)
         self.render.refresh()
-        self.state = await run.io_bound(runner.wait_until_up, self.spec, self.port, 90)
+        await run.io_bound(runner.wait_until_up, self.spec, self.port, 180)
         await self.update_state()       # records the version it gives
-        up = self.running
-        if notify:
-            self.notify(t("started", name=self.spec.name) if up else
-                      t("start_failed", name=self.spec.name, e="timeout"), type="positive" if up else "warning")
         self.render.refresh()
-        return up
+        if self.running:
+            if notify:
+                self.notify(t("started", name=self.spec.name), type="positive")
+            return True
+        if self.state.state == runner.STARTING:     # slow, but still on its way
+            self.notify(t("still_starting", name=self.spec.name), type="info")
+        else:
+            self.notify(t("start_failed", name=self.spec.name, e=t("exited")), type="warning")
+        return False
 
     async def stop(self) -> None:
         stopped = await run.io_bound(runner.stop, self.spec)
         await self.update_state()
-        if not stopped and self.running:
+        if not stopped and self.active:
             self.notify(t("stop_outside", name=self.spec.name), type="warning")
         self.render.refresh()
 
@@ -224,6 +233,7 @@ class AppCard:
         installed, version = self.installed(), self.installed_version()
         state = self.state.state if installed and self.state else None
         running, other = state == runner.RUNNING, state == runner.OTHER
+        starting = state == runner.STARTING
         rel = self.release
         with ui.card().classes("w-full"):
             with ui.row().classes("items-start justify-between w-full"):
@@ -232,6 +242,10 @@ class AppCard:
                     ui.label(t(f"desc_{self.spec.id}")).classes("text-sm text-gray-500")
                 if running:
                     ui.badge(t("running", port=self.port), color="positive").classes("text-sm")
+                elif starting:
+                    with ui.badge(color="info").classes("text-sm items-center gap-1"):
+                        ui.spinner(size="xs", color="white")
+                        ui.label(t("starting"))
                 elif other:
                     ui.badge(t("port_other", port=self.port), color="warning").classes("text-sm") \
                         .tooltip(t("port_other_hint"))
@@ -259,7 +273,7 @@ class AppCard:
                         ui.button(t("update", v=rel.version), icon="system_update", on_click=self.install_or_update)
                     elif self.spec.hub_updates and can_get:
                         ui.button(t("reinstall"), icon="refresh", on_click=self.install_or_update).props("flat")
-                    if running:
+                    if running or starting:
                         ui.button(t("stop"), icon="stop", on_click=self.stop).props("color=negative")
                     else:
                         start = ui.button(t("start"), icon="play_arrow", on_click=self.start).props("color=positive")

@@ -29,12 +29,14 @@ def port_in_use(port: int, host: str = "127.0.0.1") -> bool:
         return s.connect_ex((host, port)) == 0
 
 
-RUNNING, OTHER, STOPPED = "running", "other", "stopped"
+RUNNING, STARTING, OTHER, STOPPED = "running", "starting", "other", "stopped"
 
 
 @dataclass(frozen=True)
 class Probe:
-    state: str                  # RUNNING, OTHER (another program on the port) or STOPPED
+    # RUNNING, STARTING (started by the hub, not answering yet), OTHER
+    # (another program on the port) or STOPPED
+    state: str
     version: str | None = None  # the running app's version, when it says it
 
 
@@ -44,15 +46,15 @@ def _get_json(port: int, path: str):
     return response.json() if response.ok else None
 
 
-def probe(app: AppSpec, port: int, loading_is_running: bool = True) -> Probe:
+def probe(app: AppSpec, port: int) -> Probe:
     """Blocking: what answers on the app's port. An app the hub started
-    that doesn't answer HTTP yet counts as running unless
-    loading_is_running is False."""
+    that doesn't answer yet (a one-file build unpacks itself first: it can
+    take a while) is STARTING."""
     proc = _procs.get(app.id)
     if proc is not None and proc.poll() is not None:
         _procs.pop(app.id, None)
     if not port_in_use(port):
-        return Probe(STOPPED)
+        return Probe(STARTING if started_by_hub(app) else STOPPED)
     try:
         info = _get_json(port, "/api/app-info")
         if isinstance(info, dict) and info.get("app"):
@@ -66,8 +68,8 @@ def probe(app: AppSpec, port: int, loading_is_running: bool = True) -> Probe:
                 return Probe(RUNNING)
     except (requests.RequestException, ValueError):
         # No HTTP answer (yet): the app the hub just started, still loading?
-        if loading_is_running and started_by_hub(app):
-            return Probe(RUNNING)
+        if started_by_hub(app):
+            return Probe(STARTING)
     return Probe(OTHER)
 
 
@@ -100,11 +102,9 @@ def wait_until_up(app: AppSpec, port: int, timeout_s: float = 60) -> Probe:
     end = time.monotonic() + timeout_s
     result = Probe(STOPPED)
     while time.monotonic() < end:
-        result = probe(app, port, loading_is_running=False)
-        if result.state == RUNNING:
-            return result
-        if not started_by_hub(app):
-            return Probe(STOPPED)       # it exited
+        result = probe(app, port)
+        if result.state != STARTING:
+            return result               # up, exited, or another program got the port
         time.sleep(0.5)
     return result
 

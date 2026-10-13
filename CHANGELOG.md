@@ -14,3 +14,6 @@
     recorded.
     ### LAN access
     Option to start Dwarfium Scope Archive reachable from the other devices of the network (--lan).
+    ### Starting state
+    An application the hub started shows "Starting…" until it answers (a one-file build unpacks itself first and
+    can take a while), instead of "Running" then "Stopped"; Stop cancels the start.
