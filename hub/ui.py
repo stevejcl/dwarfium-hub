@@ -274,7 +274,7 @@ class AppCard:
                 if rel:
                     ui.button(t("whats_new"), icon="article", on_click=self.show_notes).props("flat")
                 ui.number(t("port"), value=self.port, min=1024, max=65535, format="%d",
-                          on_change=lambda e: self.set_port(e.value)).classes("w-24").props("dense")
+                          on_change=lambda e: self.set_port(e.value)).classes("w-16").props("dense")
                 if self.spec.lan_args:
                     ui.checkbox(t("lan"), value=self.lan, on_change=lambda e: self.set_lan(e.value)) \
                         .tooltip(t("lan_hint"))
