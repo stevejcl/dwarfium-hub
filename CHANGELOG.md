@@ -15,7 +15,8 @@
     (Dwarfium Lite's UID) and are Scope Archive's identifier (V3.4.3+). Shown on both sides; matched first ("Same
     Dwarf (verified)"), never suggested between two different identifiers (nor offered in "Link to…"); a linked pair
     with two different identifiers is shown as "Not the same Dwarf!"; "ID → Scope Archive" copies it to a linked
-    Dwarf that lacks it; "Create in Scope Archive" copies it too. Exact forms only (6 hex digits after the
+    Dwarf that lacks it; "Create in Scope Archive" copies it too. "Add to Dwarfium Lite": with the Dwarf on the
+    network, Dwarfium Lite (3.2.4) reads its UID and model from its IP - only the Site is left to choose. Exact forms only (6 hex digits after the
     Bluetooth name's last "_", the 6 digits, or a whole MAC address); with a Scope Archive before V3.4.3, a
     description that is the Dwarf's Bluetooth name gives it.
 

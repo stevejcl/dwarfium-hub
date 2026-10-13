@@ -27,7 +27,7 @@ The **Dwarfs** tab shows the Dwarfs of both applications side by side. Linked, a
 | **Same Dwarf (verified)** (same ID) / **Same Dwarf?** (same IP, else same name, same model) | link — or link all the suggestions at once |
 | **Not the same Dwarf!** | linked, but the two IDs differ: unlink |
 | **Not in Scope Archive** | create it there, already linked (or all of them); or link it to a Dwarf picked in the list |
-| **Not in Dwarfium Lite** | open Dwarfium Lite's manual configuration filled in (name, model, IP); its UID and Site are entered there, and it is saved linked |
+| **Not in Dwarfium Lite** | open Dwarfium Lite's manual configuration filled in (name, model, IP) — with the Dwarf on the network its UID and model are read from it (3.2.4+), only the Site is left to choose — saved linked |
 | **Broken link** | the Scope Archive Dwarf no longer exists: create it again, link to another one, or unlink |
 | *nothing at all* | add the first Dwarf in Dwarfium Lite (Bluetooth pairing or manual configuration), then create it in Scope Archive here |
 
