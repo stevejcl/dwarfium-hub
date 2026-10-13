@@ -8,7 +8,13 @@ Archive is [CONFIG] dwarfium_id (= Scope Archive's Dwarf.id) and
 dwarfium_base_url in the .ini.
 
 Scope Archive keeps its Dwarfs in the Dwarf table of db/dwarf_backup.db
-(type = the same model numbers as DWARF_ID, ip_sta_mode = the IP).
+(type = the same model numbers as DWARF_ID, ip_sta_mode = the IP; from
+its V3.4.3, ble_id = the Dwarf's identifier).
+
+Which physical Dwarf: the last 6 hex digits of its MAC address, printed
+on it, also end its Bluetooth name - Dwarfium Lite's DWARF_UID (e.g.
+DWARF3_A1B2C3) - and are Scope Archive's ble_id. When both sides have it,
+two Dwarfs are the same device for sure (or for sure not).
 
 Both are read from the files, whether the apps run or not. Writing:
 Dwarfium Lite reads its files when it starts (and may write its .ini
@@ -48,7 +54,7 @@ class LiteDwarf:
     config_ini: str
     model: str = ""              # "1" / "2" / "4"
     ip: str = ""
-    uid: str = ""
+    uid: str = ""                # the Bluetooth name
     dwarfium_id: str = ""        # Scope Archive's Dwarf.id it is linked to
     dwarfium_base_url: str = ""
 
@@ -61,9 +67,19 @@ class ArchiveDwarf:
     model: str = ""
     ip: str = ""
     description: str = ""
+    ble_id: str = ""             # 6 hex digits, "" unknown
 
 
-LINKED, BROKEN, SUGGESTED, LITE_ONLY, ARCHIVE_ONLY = "linked", "broken", "suggested", "lite_only", "archive_only"
+def normalize_ble_id(text: str | None) -> str:
+    """The last 6 hex digits (upper case) of a MAC address or a Bluetooth
+    name - the same rule as Scope Archive's api/dwarf_identity.py."""
+    compact = re.sub(r"[\s:.\-]", "", (text or "").strip())
+    m = re.search(r"([0-9A-Fa-f]{6})$", compact)
+    return m.group(1).upper() if m else ""
+
+
+LINKED, MISMATCH, BROKEN, SUGGESTED, LITE_ONLY, ARCHIVE_ONLY = (
+    "linked", "mismatch", "broken", "suggested", "lite_only", "archive_only")
 
 
 @dataclass
@@ -71,8 +87,11 @@ class Row:
     status: str
     lite: LiteDwarf | None = None
     archive: ArchiveDwarf | None = None
-    # what differs between the two sides of a linked pair: "name", "ip", "model"
+    # what differs between the two sides of a pair: "name", "ip", "model",
+    # "ble_id" (Scope Archive doesn't have Dwarfium Lite's identifier)
     differences: list[str] = field(default_factory=list)
+    # both sides have the Dwarf's identifier, and it is the same
+    verified: bool = False
 
 
 # ── Dwarfium Lite ────────────────────────────────────────────────────────
@@ -211,13 +230,28 @@ def read_archive(folder: Path) -> list[ArchiveDwarf] | None:
     try:
         conn = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True, timeout=5)
         try:
-            rows = conn.execute("SELECT id, name, type, ip_sta_mode, description FROM Dwarf ORDER BY name").fetchall()
+            columns = {r[1] for r in conn.execute("PRAGMA table_info(Dwarf)")}
+            ble_id = "ble_id" if "ble_id" in columns else "''"       # before V3.4.3
+            rows = conn.execute(f"SELECT id, name, type, ip_sta_mode, description, {ble_id} FROM Dwarf ORDER BY name") \
+                .fetchall()
         finally:
             conn.close()
     except sqlite3.Error as e:
         raise DwarfsError(f"Scope Archive database: {e}")
-    return [ArchiveDwarf(id=r[0], name=r[1] or "", model=str(r[2] or ""), ip=r[3] or "", description=r[4] or "")
-            for r in rows]
+    return [ArchiveDwarf(id=r[0], name=r[1] or "", model=str(r[2] or ""), ip=r[3] or "", description=r[4] or "",
+                         ble_id=normalize_ble_id(r[5])) for r in rows]
+
+
+def archive_has_ble_id(folder: Path) -> bool:
+    """Scope Archive's database keeps the Dwarf's identifier (V3.4.3+)."""
+    try:
+        conn = sqlite3.connect(f"{archive_db(folder).resolve().as_uri()}?mode=ro", uri=True, timeout=5)
+        try:
+            return any(r[1] == "ble_id" for r in conn.execute("PRAGMA table_info(Dwarf)"))
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return False
 
 
 _backed_up: set[Path] = set()
@@ -246,12 +280,19 @@ def _archive_write(folder: Path, sql: str, params: tuple) -> int:
 
 
 def create_archive(folder: Path, dwarf: LiteDwarf) -> int:
-    """The Dwarf of Dwarfium Lite in Scope Archive; returns its id. Its
-    USB / backup folders are set in Scope Archive afterwards."""
+    """The Dwarf of Dwarfium Lite in Scope Archive (with its identifier
+    when Scope Archive keeps it); returns its id. Its USB / backup
+    folders are set in Scope Archive afterwards."""
+    model = int(dwarf.model) if dwarf.model.isdigit() else None
+    if archive_has_ble_id(folder):
+        return _archive_write(
+            folder,
+            "INSERT INTO Dwarf (name, description, usb_astronomy_dir, type, ip_sta_mode, ble_id) VALUES (?, ?, ?, ?, ?, ?)",
+            (dwarf.name, "", "", model, dwarf.ip, normalize_ble_id(dwarf.uid) or None))
     return _archive_write(
         folder,
         "INSERT INTO Dwarf (name, description, usb_astronomy_dir, type, ip_sta_mode) VALUES (?, ?, ?, ?, ?)",
-        (dwarf.name, "", "", int(dwarf.model) if dwarf.model.isdigit() else None, dwarf.ip))
+        (dwarf.name, "", "", model, dwarf.ip))
 
 
 def set_archive_name(folder: Path, archive_id: int, name: str) -> None:
@@ -262,9 +303,19 @@ def set_archive_ip(folder: Path, archive_id: int, ip: str) -> None:
     _archive_write(folder, "UPDATE Dwarf SET ip_sta_mode = ? WHERE id = ?", (ip, archive_id))
 
 
+def set_archive_ble_id(folder: Path, archive_id: int, ble_id: str) -> None:
+    if not archive_has_ble_id(folder):
+        raise DwarfsError("this Scope Archive doesn't keep the Dwarf's identifier yet (V3.4.3+)")
+    _archive_write(folder, "UPDATE Dwarf SET ble_id = ? WHERE id = ?", (ble_id, archive_id))
+
+
 # ── both ─────────────────────────────────────────────────────────────────
 def _norm(name: str) -> str:
     return re.sub(r"[\s_-]+", " ", name).strip().casefold()
+
+
+def _ids(lite: LiteDwarf, archive: ArchiveDwarf) -> tuple[str, str]:
+    return normalize_ble_id(lite.uid), archive.ble_id
 
 
 def _differences(lite: LiteDwarf, archive: ArchiveDwarf) -> list[str]:
@@ -275,12 +326,23 @@ def _differences(lite: LiteDwarf, archive: ArchiveDwarf) -> list[str]:
         out.append("ip")
     if lite.model and archive.model and lite.model != archive.model:
         out.append("model")
+    lite_id, archive_id = _ids(lite, archive)
+    if lite_id and not archive_id:
+        out.append("ble_id")
     return out
 
 
+def _pair(status: str, lite: LiteDwarf, archive: ArchiveDwarf) -> Row:
+    lite_id, archive_id = _ids(lite, archive)
+    if status == LINKED and lite_id and archive_id and lite_id != archive_id:
+        status = MISMATCH          # linked, but two different Dwarfs
+    return Row(status, lite, archive, _differences(lite, archive), verified=bool(lite_id) and lite_id == archive_id)
+
+
 def match(lite: list[LiteDwarf], archive: list[ArchiveDwarf] | None) -> list[Row]:
-    """Linked pairs first, then suggested pairs (same IP, else same name -
-    never two different models), then the Dwarfs on one side only."""
+    """Linked pairs first, then suggested pairs - same identifier, else
+    same IP, else same name; never two different identifiers nor two
+    different models - then the Dwarfs on one side only."""
     archive = archive or []
     by_id = {a.id: a for a in archive}
     rows, used = [], set()
@@ -288,7 +350,7 @@ def match(lite: list[LiteDwarf], archive: list[ArchiveDwarf] | None) -> list[Row
     for d in lite:
         target = by_id.get(int(d.dwarfium_id)) if d.dwarfium_id.isdigit() else None
         if target is not None:
-            rows.append(Row(LINKED, d, target, _differences(d, target)))
+            rows.append(_pair(LINKED, d, target))
             used.add(target.id)
         elif d.dwarfium_id:
             rows.append(Row(BROKEN, d))        # linked to a Dwarf Scope Archive no longer has
@@ -296,19 +358,25 @@ def match(lite: list[LiteDwarf], archive: list[ArchiveDwarf] | None) -> list[Row
             free_lite.append(d)
 
     def compatible(d: LiteDwarf, a: ArchiveDwarf) -> bool:
-        return not (d.model and a.model and d.model != a.model)
+        lite_id, archive_id = _ids(d, a)
+        return not (d.model and a.model and d.model != a.model) and not (lite_id and archive_id and lite_id != archive_id)
 
-    leftover = []
-    for d in free_lite:
-        free = [a for a in archive if a.id not in used and compatible(d, a)]
-        found = (next((a for a in free if d.ip and a.ip == d.ip), None)
-                 or next((a for a in free if _norm(a.name) and _norm(a.name) == _norm(d.name)), None))
-        if found:
-            rows.append(Row(SUGGESTED, d, found, _differences(d, found)))
-            used.add(found.id)
-        else:
-            leftover.append(d)
-    rows += [Row(LITE_ONLY, d) for d in leftover]
+    # One pass per clue, the surest first, over all the Dwarfs: a Dwarf
+    # found by its identifier is never taken by another one's same IP
+    clues = (lambda d, a: bool(_ids(d, a)[0]) and _ids(d, a)[0] == _ids(d, a)[1],
+             lambda d, a: bool(d.ip) and a.ip == d.ip,
+             lambda d, a: bool(_norm(a.name)) and _norm(a.name) == _norm(d.name))
+    suggested: dict[int, Row] = {}
+    for clue in clues:
+        for i, d in enumerate(free_lite):
+            if i in suggested:
+                continue
+            found = next((a for a in archive if a.id not in used and compatible(d, a) and clue(d, a)), None)
+            if found:
+                suggested[i] = _pair(SUGGESTED, d, found)
+                used.add(found.id)
+    rows += [suggested[i] for i in sorted(suggested)]
+    rows += [Row(LITE_ONLY, d) for i, d in enumerate(free_lite) if i not in suggested]
     rows += [Row(ARCHIVE_ONLY, archive=a) for a in archive if a.id not in used]
     return rows
 

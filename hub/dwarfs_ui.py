@@ -31,6 +31,7 @@ class DwarfsView:
         self.rows: list[D.Row] = []
         self.error = ""
         self.loaded = False
+        self.archive_keeps_ids = False     # Scope Archive V3.4.3+
 
     @property
     def lite(self) -> "AppCard":
@@ -51,9 +52,14 @@ class DwarfsView:
         try:
             self.lite_dwarfs = D.read_lite(self.lite.folder) if self.lite.installed() else []
             self.archive_dwarfs = D.read_archive(self.archive.folder) if self.archive.installed() else None
+            self.archive_keeps_ids = self.archive_dwarfs is not None and D.archive_has_ble_id(self.archive.folder)
         except D.DwarfsError as e:
             self.lite_dwarfs, self.archive_dwarfs, self.error = [], None, str(e)
         self.rows = D.match(self.lite_dwarfs, self.archive_dwarfs)
+        if not self.archive_keeps_ids:      # nothing to copy there before V3.4.3
+            for row in self.rows:
+                if "ble_id" in row.differences:
+                    row.differences.remove("ble_id")
         self.loaded = True
 
     async def reload(self) -> None:
@@ -107,7 +113,9 @@ class DwarfsView:
 
     async def copy(self, row: D.Row, what: str, to_archive: bool) -> None:
         lite, archive = row.lite, row.archive
-        if what == "name":
+        if what == "ble_id":
+            action = lambda: D.set_archive_ble_id(self.archive.folder, archive.id, D.normalize_ble_id(lite.uid))
+        elif what == "name":
             action = (lambda: D.set_archive_name(self.archive.folder, archive.id, lite.name)) if to_archive else \
                      (lambda: D.set_lite_name(self.lite.folder, lite, archive.name))
         else:
@@ -140,11 +148,13 @@ class DwarfsView:
 
     # ── view ──────────────────────────────────────────────────────────────
     @staticmethod
-    def _side(title: str, name: str, model: str, ip: str) -> None:
+    def _side(title: str, name: str, model: str, ip: str, ble_id: str) -> None:
         with ui.column().classes("gap-0 min-w-0 flex-1"):
             ui.label(title).classes("text-xs text-gray-500")
             ui.label(name or "—").classes("font-medium break-all")
             ui.label(" · ".join(x for x in (D.MODELS.get(model, ""), ip) if x) or " ").classes("text-xs text-gray-500")
+            ui.label(f"ID {ble_id}" if ble_id else t("dw_no_id")).classes("text-xs font-mono text-gray-500") \
+                .tooltip(t("dw_id_hint"))
 
     @staticmethod
     def _empty_side(title: str, text: str) -> None:
@@ -162,21 +172,25 @@ class DwarfsView:
 
     def _row(self, row: D.Row) -> None:
         status_icon = {D.LINKED: ("link", "positive", "dw_status_linked"),
+                       D.MISMATCH: ("error", "negative", "dw_status_mismatch"),
                        D.SUGGESTED: ("add_link", "primary", "dw_status_suggested"),
                        D.BROKEN: ("link_off", "negative", "dw_status_broken"),
                        D.LITE_ONLY: ("arrow_forward", "grey", "dw_status_lite_only"),
                        D.ARCHIVE_ONLY: ("arrow_back", "grey", "dw_status_archive_only")}[row.status]
+        if row.verified:        # same identifier on both sides: the same Dwarf for sure
+            status_icon = ("verified", "positive",
+                           "dw_status_linked_verified" if row.status == D.LINKED else "dw_status_verified")
         with ui.card().classes("w-full p-3"):
             with ui.row().classes("w-full items-center gap-3 no-wrap"):
                 if row.lite:
-                    self._side("Dwarfium Lite", row.lite.name, row.lite.model, row.lite.ip)
+                    self._side("Dwarfium Lite", row.lite.name, row.lite.model, row.lite.ip, D.normalize_ble_id(row.lite.uid))
                 else:
                     self._empty_side("Dwarfium Lite", t("dw_none"))
                 with ui.column().classes("items-center gap-0 w-28 shrink-0"):
                     ui.icon(status_icon[0], color=status_icon[1], size="md")
                     ui.label(t(status_icon[2])).classes("text-xs text-center")
                 if row.archive:
-                    self._side("Scope Archive", row.archive.name, row.archive.model, row.archive.ip)
+                    self._side("Scope Archive", row.archive.name, row.archive.model, row.archive.ip, row.archive.ble_id)
                 elif row.status == D.BROKEN:
                     self._empty_side("Scope Archive", t("dw_missing", id=row.lite.dwarfium_id))
                 else:
@@ -188,10 +202,16 @@ class DwarfsView:
                         ui.label(t("dw_differs", what=", ".join(t(f"dw_{d}") for d in row.differences))) \
                             .classes("text-xs text-gray-500 mr-auto")
                     self._lite_button(t("dw_link"), "link", lambda r=row: self.link(r))
+                elif row.status == D.MISMATCH:
+                    ui.label(t("dw_mismatch_hint")).classes("text-xs text-negative mr-auto")
+                    self._lite_button(t("dw_unlink"), "link_off", lambda r=row: self.unlink(r))
                 elif row.status == D.LINKED:
                     if row.differences:
                         ui.label(t("dw_differs", what=", ".join(t(f"dw_{d}") for d in row.differences))) \
                             .classes("text-xs text-orange-700 mr-auto")
+                    if "ble_id" in row.differences:
+                        ui.button(t("dw_ble_id_to_archive"),
+                                  on_click=lambda r=row: self.copy(r, "ble_id", True)).props("dense no-caps flat")
                     for what in ("name", "ip"):
                         if what in row.differences:
                             ui.button(t(f"dw_{what}_to_archive"),
@@ -201,7 +221,10 @@ class DwarfsView:
                     self._lite_button(t("dw_unlink"), "link_off", lambda r=row: self.unlink(r), flat=True)
                 elif row.status in (D.LITE_ONLY, D.BROKEN):
                     if self.archive_dwarfs is not None:
-                        free = [r.archive for r in self.rows if r.status == D.ARCHIVE_ONLY]
+                        # never a Dwarf whose identifier says it is another one
+                        lite_id = D.normalize_ble_id(row.lite.uid)
+                        free = [r.archive for r in self.rows if r.status == D.ARCHIVE_ONLY
+                                and not (lite_id and r.archive.ble_id and r.archive.ble_id != lite_id)]
                         if free and not self.lite_locked():
                             ui.select({a.id: a.name for a in free}, label=t("dw_link_to"),
                                       on_change=lambda e, r=row, f=free: self.link(r, next(a for a in f if a.id == e.value))) \

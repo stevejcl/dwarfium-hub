@@ -23,12 +23,15 @@ The **Dwarfs** tab shows the Dwarfs of both applications side by side. Linked, a
 
 | On screen | What the hub offers |
 |---|---|
-| **Linked** | copy the name or the IP from one side to the other when they differ; unlink |
-| **Same Dwarf?** (same IP, else same name, same model) | link — or link all the suggestions at once |
+| **Linked** / **Linked (verified)** | copy the name, the IP or the ID from one side to the other when they differ; unlink |
+| **Same Dwarf (verified)** (same ID) / **Same Dwarf?** (same IP, else same name, same model) | link — or link all the suggestions at once |
+| **Not the same Dwarf!** | linked, but the two IDs differ: unlink |
 | **Not in Scope Archive** | create it there, already linked (or all of them); or link it to a Dwarf picked in the list |
 | **Not in Dwarfium Lite** | open Dwarfium Lite's manual configuration filled in (name, model, IP); its UID and Site are entered there, and it is saved linked |
 | **Broken link** | the Scope Archive Dwarf no longer exists: create it again, link to another one, or unlink |
 | *nothing at all* | add the first Dwarf in Dwarfium Lite (Bluetooth pairing or manual configuration), then create it in Scope Archive here |
+
+**ID** — which physical Dwarf: the last 6 characters of the MAC address printed on it. They also end its Bluetooth name (Dwarfium Lite's UID, e.g. `DWARF3_A1B2C3`), and Scope Archive (V3.4.3+) keeps them on its Dwarf page — typed from the label, or read from the Dwarf at its IP. Same ID on both sides: the same Dwarf for sure; two different IDs are never suggested together.
 
 Dwarfium Lite reads its Dwarfs when it starts: its side is only changed while it is stopped, and only the lines concerned (`dwarfium_id`, `dwarfium_base_url` in `config_*.ini`, `DWARF_IP`, the name in `devices.json`). Scope Archive's database is copied to `db/dwarf_backup.db.hub` before the hub's first change.
 
