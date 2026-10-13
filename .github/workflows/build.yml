@@ -1,0 +1,73 @@
+name: Build Dwarfium-Hub
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    steps:
+      - name: 🔄 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 📦 Install requirements
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: ⚙️ Run build script
+        run: python buildDwarfiumHub.py
+
+      - name: 📤 Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zip-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || github.ref_name }}-${{ runner.os }}
+          path: DwarfiumHub-${{ runner.os }}.zip
+
+  release:
+    name: 🚀 Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: 🔄 Checkout code
+        uses: actions/checkout@v5
+
+      - name: 🏷️ Version from CHANGELOG.md
+        run: |
+          VERSION=$(grep -m 1 -o '\[.*\]' CHANGELOG.md | sed 's/\[\(.*\)\]/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: 📥 Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloads
+
+      - name: 🚀 Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: downloads/**/*.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+          generateReleaseNotes: true
+          skipIfReleaseExists: true
+          tag: v${{ env.VERSION }}
+          name: Dwarfium-Hub v${{ env.VERSION }}

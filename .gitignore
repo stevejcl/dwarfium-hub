@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+*.zip
+version.py
+hub_config.json
+.nicegui/
+myenv*/
+venv*/
+.venv/
