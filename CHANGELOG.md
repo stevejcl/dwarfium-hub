@@ -6,6 +6,9 @@
     "Exception in callback _ProactorBasePipeTransport._call_connection_lost ... WinError 10054" printed when the hub
     closes (the window's connection already reset): harmless cleanup noise, now logged at DEBUG only - the same
     filter as Dwarfium Lite's.
+    ### Synchronize: the count follows the ticks
+    The preview's "n change(s)" didn't change when lines were unticked: now "s of n change(s) selected", updated at
+    each tick, with Tick all / Untick all; Synchronize disabled when nothing is ticked.
   ### Add
     ### Synchronize tab
     Two Dwarfium Lite installations merged both ways - the hub's, a source run, a laptop's, a mini PC's through a
