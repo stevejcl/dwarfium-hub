@@ -46,6 +46,10 @@ Click **+ Add an instance**, then:
 
 The card then shows the instance live, wherever it is, and the shared folder `\\\\minipc\\AstroDwarfSession` works for the synchronization.
 
+**Sometimes at home, sometimes away** (a laptop, a mini PC that travels): one instance, access **Both** - its home network address and its Tailscale address. The home address is asked first, then the Tailscale one: the card goes to the band where it answered, so you see at a glance where it is. For its shared folder, the Tailscale name (`\\\\minipc\\...`) works in both cases.
+
+**Scope Archive seen from that instance**: in its Dwarfium Lite, give Scope Archive's address with this PC's Tailscale name (`http://pc-name:8080`, Scope Archive started with LAN access) - it answers at home and away, nothing to change when the computer moves.
+
 ### What the cards show
 
 - ● running, with its version - ○ stopped (the computer answers, Dwarfium Lite doesn't) - ☁ unreachable (off, other network, Tailscale down).
@@ -92,6 +96,10 @@ Cliquez sur **+ Ajouter une instance**, puis :
 3. **Partage + pare-feu** : partagez le dossier de Dwarfium Lite, puis laissez entrer le réseau Tailscale - Windows le classe souvent en profil *Public* : autorisez *Partage de fichiers et d'imprimantes* (port 445) et Dwarfium Lite (port 8090) aussi pour les réseaux publics, ou passez le réseau Tailscale en *Privé*.
 
 La carte montre alors l'instance en direct, où qu'elle soit, et le dossier partagé `\\\\minipc\\AstroDwarfSession` fonctionne pour la synchronisation.
+
+**Tantôt à la maison, tantôt ailleurs** (un portable, un mini PC qui voyage) : une seule instance, accès **Les deux** - son adresse sur le réseau maison et son adresse Tailscale. L'adresse maison est interrogée d'abord, puis l'adresse Tailscale : la carte se place dans la zone où elle a répondu, vous voyez d'un coup d'œil où elle se trouve. Pour son dossier partagé, le nom Tailscale (`\\\\minipc\\...`) fonctionne dans les deux cas.
+
+**Scope Archive vu depuis cette instance** : dans son Dwarfium Lite, indiquez l'adresse de Scope Archive avec le nom Tailscale de ce PC (`http://nom-du-pc:8080`, Scope Archive démarré avec l'accès réseau) - elle répond à la maison comme ailleurs, rien à changer quand l'ordinateur se déplace.
 
 ### Ce que montrent les cartes
 

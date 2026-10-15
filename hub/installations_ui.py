@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from hub.ui import HubPage
 
 _REFRESH_S = 20
-_STATUS_TIMEOUT_S = 10
+_STATUS_TIMEOUT_S = 20      # two addresses ("both"), each refused or timed out
 _SHARE_TIMEOUT_S = 20
 HOME = "home"
 
@@ -47,6 +47,7 @@ class InstallationsView:
     def __init__(self, page: "HubPage"):
         self.page = page
         self.status: dict[str, I.Status] = {}      # instance id (or HOME) -> live state
+        self.last_via: dict[str, str] = {}          # "both": where it last answered
         self.refreshing = False
 
     @property
@@ -61,21 +62,33 @@ class InstallationsView:
         return self.page.cfg.setdefault("instances", [])
 
     # ── live state ────────────────────────────────────────────────────────
-    async def _one(self, key: str, host: str, port: int) -> None:
+    async def _one(self, key: str, call, *args) -> None:
         try:
-            self.status[key] = await asyncio.wait_for(run.io_bound(I.status, host, port), _STATUS_TIMEOUT_S)
+            st = await asyncio.wait_for(run.io_bound(call, *args), _STATUS_TIMEOUT_S)
         except asyncio.TimeoutError:
-            self.status[key] = I.Status(I.UNREACHABLE)
+            st = I.Status(I.UNREACHABLE)
+        self.status[key] = st
+        if st.via:
+            self.last_via[key] = st.via
+
+    def _via(self, inst: dict) -> str:
+        """The band of an instance: where it answered (else last time),
+        else its access."""
+        st = self.status.get(inst["id"])
+        if st is not None and st.via:
+            return st.via
+        if inst.get("access") == I.BOTH:
+            return self.last_via.get(inst["id"], I.LAN)
+        return I.TAILSCALE if inst.get("access") == I.TAILSCALE else I.LAN
 
     async def refresh_status(self) -> None:
         if self.refreshing:
             return
         self.refreshing = True
         try:
-            jobs = [self._one(i["id"], i.get("host") or "", int(i.get("port") or I.DEFAULT_PORT))
-                    for i in self._instances()]
+            jobs = [self._one(i["id"], I.status_of, i) for i in self._instances()]
             if self.lite.running:
-                jobs.append(self._one(HOME, "127.0.0.1", self.lite.port))
+                jobs.append(self._one(HOME, I.status, "127.0.0.1", self.lite.port))
             else:
                 self.status.pop(HOME, None)
             await asyncio.gather(*jobs)
@@ -191,7 +204,7 @@ class InstallationsView:
                 self._dwarf_lines(self.status.get(HOME))
 
     def _instance_card(self, inst: dict) -> None:
-        tailscale = inst.get("access") == I.TAILSCALE
+        tailscale = self._via(inst) == I.TAILSCALE
         port = int(inst.get("port") or I.DEFAULT_PORT)
         with ui.card().classes("inst-card p-4 gap-1" + (" inst-ts" if tailscale else "")):
             with ui.row().classes("w-full items-start no-wrap gap-1"):
@@ -200,15 +213,18 @@ class InstallationsView:
                     ui.label(t(f"in_kind_{inst.get('kind') or 'other'}")).classes("text-xs text-gray-500")
                 ui.button(icon="edit", on_click=lambda i=inst: self.edit(i)).props("flat dense round size=sm") \
                     .tooltip(t("in_edit"))
-            address = " · ".join(x for x in (inst.get("host") or "", inst.get("share") or "") if x)
+            hosts = " / ".join(h for _, h in I.addresses(inst))
+            address = " · ".join(x for x in (hosts, inst.get("share") or "") if x)
             if address:
                 ui.label(address).classes("font-mono text-xs text-gray-600 break-all")
             st = self.status.get(inst["id"])
             self._state_line(st, port)
+            if inst.get("access") == I.BOTH and st is not None and st.via:
+                ui.label(t("in_via_" + st.via)).classes("text-xs text-gray-500")
             self._dwarf_lines(st)
             self._sync_line(inst.get("share") or "")
             if st is not None and st.state == I.ACTIVE:
-                ui.link(t("in_open"), f"http://{inst['host']}:{port}", new_tab=True).classes("text-sm")
+                ui.link(t("in_open"), f"http://{st.host}:{port}", new_tab=True).classes("text-sm")
 
     def _add_card(self) -> None:
         with ui.card().classes("inst-card inst-add p-4 items-center justify-center text-center") \
@@ -228,8 +244,8 @@ class InstallationsView:
                 with ui.row().classes("w-full items-center gap-2 p-2 rounded bg-red-50 text-red-800 text-sm no-wrap"):
                     ui.icon("warning", color="negative")
                     ui.label(t("in_double", name=name, where=", ".join(where)))
-            local = [i for i in self._instances() if i.get("access") != I.TAILSCALE]
-            remote = [i for i in self._instances() if i.get("access") == I.TAILSCALE]
+            local = [i for i in self._instances() if self._via(i) == I.LAN]
+            remote = [i for i in self._instances() if self._via(i) == I.TAILSCALE]
             with ui.row().classes("w-full gap-3 items-stretch"):
                 with ui.column().classes("inst-band inst-band-lan gap-3 flex-[2] min-w-[300px]"):
                     ui.label(t("in_band_home")).classes("inst-band-title")
@@ -261,6 +277,7 @@ class InstallationsView:
         new = inst is None
         data = dict(inst or {"id": I.new_id(), "name": "", "kind": "laptop", "access": I.LAN,
                              "host": "", "port": I.DEFAULT_PORT, "share": ""})
+        data.setdefault("ts_host", "")
         with self.page.dialog_host, ui.dialog() as dialog, \
                 ui.card().classes("p-5 gap-3").style("width: min(95vw, 640px); max-width: none"):
             ui.label(t("in_add") if new else t("in_edit")).classes("text-lg font-bold")
@@ -272,13 +289,27 @@ class InstallationsView:
                           on_change=lambda e: data.update(kind=e.value)).props("no-caps dense")
             with ui.column().classes("gap-1"):
                 ui.label(t("in_access")).classes("text-xs text-gray-500")
-                ui.toggle({I.LAN: t("in_access_lan"), I.TAILSCALE: "Tailscale"}, value=data["access"],
-                          on_change=lambda e: data.update(access=e.value)).props("no-caps dense")
+                access = ui.toggle({I.LAN: t("in_access_lan"), I.TAILSCALE: "Tailscale", I.BOTH: t("in_access_both")},
+                                   value=data["access"]).props("no-caps dense")
             with ui.row().classes("w-full gap-3 no-wrap"):
-                _hint(ui.input(t("in_host"), value=data["host"], on_change=lambda e: data.update(host=e.value.strip()))
-                      .classes("flex-1"), t("in_host_hint"))
+                host = _hint(ui.input(t("in_host"), value=data["host"],
+                                      on_change=lambda e: data.update(host=e.value.strip())).classes("flex-1"),
+                             t("in_host_hint"))
                 ui.number(t("in_port"), value=data["port"], min=1, max=65535, format="%d",
                           on_change=lambda e: data.update(port=int(e.value or I.DEFAULT_PORT))).classes("w-24")
+            ts_host = _hint(ui.input(t("in_ts_host"), value=data["ts_host"],
+                                     on_change=lambda e: data.update(ts_host=e.value.strip())).classes("w-full"),
+                            t("in_ts_host_hint"))
+
+            def access_changed(value: str) -> None:
+                data["access"] = value
+                both = value == I.BOTH
+                host._props["label"] = t("in_host_lan") if both else t("in_host")
+                host._props["hint"] = t("in_host_lan_hint") if both else t("in_host_hint")
+                host.update()
+                ts_host.set_visibility(both)
+            access.on_value_change(lambda e: access_changed(e.value))
+            access_changed(data["access"])
             with ui.row().classes("w-full gap-2 no-wrap items-start"):
                 share = _hint(ui.input(t("in_share"), value=data["share"],
                                        on_change=lambda e: data.update(share=e.value.strip())).classes("flex-1"),
@@ -305,9 +336,11 @@ class InstallationsView:
                             ui.label(text).classes("break-all")
 
             def save():
+                if data["access"] != I.BOTH:
+                    data["ts_host"] = ""
                 if not data["name"]:
-                    data["name"] = data["host"] or (data["share"].rstrip("\\/").split("\\")[-1].split("/")[-1])
-                if not (data["host"] or data["share"]):
+                    data["name"] = data["host"] or data["ts_host"] or (data["share"].rstrip("\\/").split("\\")[-1].split("/")[-1])
+                if not (data["host"] or data["ts_host"] or data["share"]):
                     ui.notify(t("in_need_address"), type="warning")
                     return
                 if data["share"] and any(i.get("share") == data["share"] and i["id"] != data["id"]
@@ -345,19 +378,21 @@ class InstallationsView:
     async def _check(self, data: dict) -> list[tuple[bool | None, str]]:
         """(ok, text): ok True, False (a problem) or None (nothing to check)."""
         lines: list[tuple[bool | None, str]] = []
-        host, port = data["host"], int(data["port"] or I.DEFAULT_PORT)
-        if host:
+        port = int(data["port"] or I.DEFAULT_PORT)
+        pairs = I.addresses(data)
+        for via, host in pairs:
             try:
                 st = await asyncio.wait_for(run.io_bound(I.status, host, port), _STATUS_TIMEOUT_S)
             except asyncio.TimeoutError:
                 st = I.Status(I.UNREACHABLE)
+            addr = f"{host}:{port}" + (f" ({t('in_addr_' + via)})" if len(pairs) > 1 else "")
             if st.state == I.ACTIVE:
-                lines.append((True, t("in_chk_lite_ok", addr=f"{host}:{port}", v=st.version)))
                 connected = sum(1 for d in st.dwarfs if d.connected)
-                lines.append((True, t("in_chk_dwarfs", n=len(st.dwarfs), c=connected)))
+                lines.append((True, t("in_chk_lite_ok", addr=addr, v=st.version) + " - "
+                              + t("in_chk_dwarfs", n=len(st.dwarfs), c=connected)))
             else:
-                lines.append((False, t(f"in_chk_{st.state}", addr=f"{host}:{port}")))
-        else:
+                lines.append((False, t(f"in_chk_{st.state}", addr=addr)))
+        if not pairs:
             lines.append((None, t("in_chk_no_host")))
         if data["share"]:
             try:

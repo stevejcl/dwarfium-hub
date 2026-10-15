@@ -10,6 +10,10 @@ host + port: its state, read live from Dwarfium Lite's API (/api/app-info,
 Synchronize tab. Either may be empty (a source run on the same PC has no
 share to give: its folder is the share).
 
+access "both" - a laptop or mini PC sometimes at home, sometimes away:
+host is its home network address, ts_host its Tailscale one; the home
+address is asked first, and the card goes where it answered.
+
 The folders added in the Synchronize tab before this ("sync_folders")
 become instances with a share only.
 """
@@ -23,7 +27,7 @@ from pathlib import Path
 import requests
 
 KINDS = ("release", "dev", "laptop", "minipc", "other")
-LAN, TAILSCALE = "lan", "tailscale"
+LAN, TAILSCALE, BOTH = "lan", "tailscale", "both"
 DEFAULT_PORT = 8090
 
 # Live state of an instance
@@ -74,6 +78,8 @@ class Status:
     state: str
     version: str = ""
     dwarfs: list[Dwarf] = field(default_factory=list)
+    via: str = ""       # LAN or TAILSCALE: the address that answered
+    host: str = ""
 
 
 def _reachable(host: str, port: int) -> str:
@@ -137,3 +143,35 @@ def share_ok(share: str) -> bool:
 def short_uid(uid: str) -> str:
     from hub.dwarfs import normalize_ble_id
     return normalize_ble_id(uid) or uid
+
+
+def addresses(inst: dict) -> list[tuple[str, str]]:
+    """(via, host) in the order they are asked."""
+    host, access = inst.get("host") or "", inst.get("access") or LAN
+    if access == BOTH:
+        pairs = [(LAN, host), (TAILSCALE, inst.get("ts_host") or "")]
+    else:
+        pairs = [(TAILSCALE if access == TAILSCALE else LAN, host)]
+    return [(via, h) for via, h in pairs if h]
+
+
+# The address to keep when none has Dwarfium Lite running: one where the
+# computer answered beats one not reachable
+_ANSWERED = {STOPPED: 2, OTHER: 2, UNREACHABLE: 1}
+
+
+def status_of(inst: dict) -> Status:
+    """Blocking. The first address with Dwarfium Lite running, else the
+    one that said the most."""
+    port = int(inst.get("port") or DEFAULT_PORT)
+    best: Status | None = None
+    for via, host in addresses(inst):
+        st = status(host, port)
+        st.via, st.host = via, host
+        if st.state == ACTIVE:
+            return st
+        if best is None or _ANSWERED.get(st.state, 0) > _ANSWERED.get(best.state, 0):
+            best = st
+    if best is not None and best.state == UNREACHABLE:
+        best.via = ""       # not reached: where it is isn't known
+    return best or Status(NO_ADDRESS)
