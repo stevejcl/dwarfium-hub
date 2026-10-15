@@ -227,7 +227,15 @@ class SyncView:
 
     def _toggle(self, act: S.Action, value: bool) -> None:
         act.selected = value
-        self._update_selection()
+        # A Dwarf copied or not: its dashboard preferences with it
+        followers = [x for x in self._changes() if act.dwarf_key and x.follows == act.dwarf_key
+                     and x.direction == act.direction and x.selected != value]
+        for x in followers:
+            x.selected = value
+        if followers:
+            self.render.refresh()
+        else:
+            self._update_selection()
 
     def _select_all(self, value: bool) -> None:
         for act in self._changes():
