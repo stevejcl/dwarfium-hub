@@ -211,12 +211,35 @@ class SyncView:
         await self.compare()        # what is left: nothing but the conflicts
 
     # ── display ───────────────────────────────────────────────────────────
+    def _changes(self) -> list[S.Action]:
+        return [x for x in self.actions or [] if x.kind != S.CONFLICT]
+
+    def _preview_text(self) -> str:
+        changes = self._changes()
+        conflicts = len(self.actions or []) - len(changes)
+        return t("sy_preview", s=sum(x.selected for x in changes), n=len(changes), c=conflicts)
+
+    def _update_selection(self) -> None:
+        """The count and the Synchronize button follow the ticks."""
+        self._preview_label.set_text(self._preview_text())
+        if self._apply_button is not None:
+            self._apply_button.set_enabled(self._can_write() and any(x.selected for x in self._changes()))
+
+    def _toggle(self, act: S.Action, value: bool) -> None:
+        act.selected = value
+        self._update_selection()
+
+    def _select_all(self, value: bool) -> None:
+        for act in self._changes():
+            act.selected = value
+        self.render.refresh()
+
     def _action_row(self, act: S.Action) -> None:
         with ui.row().classes("w-full items-center gap-2 no-wrap py-1 border-b"):
             if act.kind == S.CONFLICT:
                 ui.icon("warning", color="orange").classes("shrink-0")
             else:
-                ui.checkbox(value=act.selected, on_change=lambda e, x=act: setattr(x, "selected", e.value)) \
+                ui.checkbox(value=act.selected, on_change=lambda e, x=act: self._toggle(x, e.value)) \
                     .props("dense")
                 left, right = self._label(self.compared[0]), self._label(self.compared[1])
                 arrow = f"{left} → {right}" if act.direction == S.A2B else f"{right} → {left}"
@@ -304,14 +327,22 @@ class SyncView:
             if not self.actions:
                 ui.label(t("sy_same")).classes("text-positive")
                 return
+            self._apply_button = None
             with ui.card().classes("w-full p-3 gap-0"):
-                ui.label(t("sy_preview", n=len(changes), c=len(conflicts))).classes("font-medium mb-2")
+                with ui.row().classes("w-full items-center gap-2 mb-2"):
+                    self._preview_label = ui.label(self._preview_text()).classes("font-medium flex-1")
+                    if len(changes) > 1:
+                        ui.button(t("sy_select_all"), on_click=lambda: self._select_all(True)) \
+                            .props("flat dense no-caps size=sm")
+                        ui.button(t("sy_select_none"), on_click=lambda: self._select_all(False)) \
+                            .props("flat dense no-caps size=sm")
                 for act in changes + conflicts:
                     self._action_row(act)
             if changes:
                 with ui.row().classes("items-center gap-2"):
-                    button = ui.button(t("sy_apply"), icon="sync", on_click=self.apply).props("no-caps color=primary")
+                    self._apply_button = ui.button(t("sy_apply"), icon="sync", on_click=self.apply) \
+                        .props("no-caps color=primary")
                     if not self._can_write():
-                        button.disable()
                         ui.label(t("sy_stop_first")).classes("text-xs text-orange-700")
+                self._update_selection()
                 ui.label(t("sy_backup_note")).classes("text-xs text-gray-500")
