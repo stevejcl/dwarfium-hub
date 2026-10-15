@@ -11,6 +11,9 @@
     unticked), a program to run copied to the other side is flagged (double capture). Dwarfium Lite stopped on both
     sides: the hub's is stopped by Synchronize and started again after (nothing synchronized when it can't be - one
     started outside the hub), another folder's confirmed; a zip of both in their sync_backups folder first.
+    At startup, the hub's Dwarfium Lite compared in the background with each added folder: a notice when one
+    differs, a line per folder in the tab (the same / n changes with Compare / not reachable - a network share that
+    doesn't answer given up after 20 s). A remote installation works through a Windows share over Tailscale (README).
 
 ## [0.1.1] - 2026-10-13
   ### Add

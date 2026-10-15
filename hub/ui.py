@@ -438,6 +438,7 @@ class HubPage:
             ui.timer(0.1, card.check_release, once=True)
         self._watching = False
         ui.timer(0.1, self.watch_running, once=True)
+        ui.timer(2, self.sync.check_at_startup, once=True)
         ui.timer(3, self.watch_running)
 
     async def tab_changed(self, e) -> None:

@@ -9,6 +9,7 @@ The folders added here are kept in hub_config.json ("sync_folders").
 """
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,10 @@ if TYPE_CHECKING:
     from hub.ui import HubPage
 
 HUB_LITE = "hub"        # the hub's own Dwarfium Lite installation
+# A network share not there (PC off, Tailscale down) can block a while:
+# the startup check gives up on a folder after this
+_CHECK_TIMEOUT_S = 20
+UNREACHABLE = -1
 
 
 class SyncView:
@@ -33,6 +38,9 @@ class SyncView:
         self.compared: tuple[str, str] | None = None
         self.confirmed_stopped = False
         self.busy = False
+        # Startup check: folder -> number of changes with the hub's
+        # Dwarfium Lite (UNREACHABLE: folder not reachable)
+        self.startup: dict[str, int] = {}
 
     @property
     def lite(self):
@@ -101,6 +109,39 @@ class SyncView:
         folder's can't be stopped from here: the user confirms it."""
         return self.confirmed_stopped or not self._other_folder_used()
 
+    # ── startup check ─────────────────────────────────────────────────────
+    def _count_changes(self, folder: str) -> int:
+        """Blocking. Changes between the hub's Dwarfium Lite and a folder
+        (the differences only shown not counted)."""
+        if not (Path(folder) / "devices.json").is_file():
+            return UNREACHABLE
+        actions = S.compare(S.read(self.lite.folder), S.read(Path(folder)))
+        return sum(1 for x in actions if x.kind != S.CONFLICT)
+
+    async def check_at_startup(self) -> None:
+        """Once, when the hub opens: each added folder compared with the
+        hub's Dwarfium Lite in the background - a notice when one differs,
+        a line per folder in this tab. A folder not reachable (network
+        share unavailable) is skipped after _CHECK_TIMEOUT_S."""
+        if not self.lite.installed() or not self._folders():
+            return
+        for folder in self._folders():
+            try:
+                n = await asyncio.wait_for(run.io_bound(self._count_changes, folder), _CHECK_TIMEOUT_S)
+            except (asyncio.TimeoutError, S.SyncError, OSError):
+                n = UNREACHABLE
+            self.startup[folder] = n
+        differing = [f for f, n in self.startup.items() if n > 0]
+        if differing:
+            self.page.notify(t("sy_startup_notice", names=", ".join(Path(f).name or f for f in differing)),
+                             type="info", multi_line=True, timeout=10000)
+        if not self.busy:
+            self.render.refresh()
+
+    async def compare_with(self, folder: str) -> None:
+        self.a, self.b, self.actions = HUB_LITE, folder, None
+        await self.compare()
+
     # ── compare / apply ───────────────────────────────────────────────────
     async def compare(self) -> None:
         if not self.a or not self.b or self.a == self.b:
@@ -168,10 +209,31 @@ class SyncView:
             if act.warning == "todo":
                 ui.icon("report", color="orange").tooltip(t("sy_todo_warning"))
 
+    def _startup_lines(self) -> None:
+        if not self.startup:
+            return
+        with ui.card().classes("w-full p-3 gap-1"):
+            ui.label(t("sy_startup_title")).classes("text-sm font-medium")
+            for folder, n in self.startup.items():
+                name = Path(folder).name or folder
+                with ui.row().classes("w-full items-center gap-2 no-wrap").tooltip(folder):
+                    if n == UNREACHABLE:
+                        ui.icon("cloud_off", color="grey")
+                        ui.label(t("sy_startup_unreachable", name=name)).classes("text-sm text-gray-500")
+                    elif n == 0:
+                        ui.icon("check_circle", color="positive")
+                        ui.label(t("sy_startup_same", name=name)).classes("text-sm")
+                    else:
+                        ui.icon("sync_problem", color="orange")
+                        ui.label(t("sy_startup_diff", name=name, n=n)).classes("text-sm flex-1")
+                        ui.button(t("sy_compare"), on_click=lambda f=folder: self.compare_with(f)) \
+                            .props("dense flat no-caps")
+
     @ui.refreshable
     def render(self) -> None:
         with ui.column().classes("w-full gap-3"):
             ui.label(t("sy_intro")).classes("text-sm text-gray-600")
+            self._startup_lines()
             options = self._options()
             with ui.row().classes("w-full items-end gap-3 flex-wrap"):
                 ui.select(options, value=self.a if self.a in options else None, label=t("sy_side_a"),
