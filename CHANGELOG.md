@@ -9,7 +9,8 @@
     advanced kept (Done / Error > Current > ToDo; the latest at the same stage); results, sites and preferences a side
     lacks; a site or preference different on each side only shown. A preview lists every change (each can be
     unticked), a program to run copied to the other side is flagged (double capture). Dwarfium Lite stopped on both
-    sides (the hub's stopped from here, another folder confirmed); a zip of both in their sync_backups folder first.
+    sides: the hub's is stopped by Synchronize and started again after (nothing synchronized when it can't be - one
+    started outside the hub), another folder's confirmed; a zip of both in their sync_backups folder first.
 
 ## [0.1.1] - 2026-10-13
   ### Add

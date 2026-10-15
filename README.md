@@ -45,7 +45,7 @@ The **Synchronize** tab merges two Dwarfium Lite installations both ways: the hu
 - **Programs** — found by their uuid. One missing on a side is copied; at two stages, the most advanced wins (Done / Error over Current over ToDo), the latest written at the same stage. A program to run copied to the other side is flagged: run it from one installation only.
 - **Results, sites, preferences** — what one side lacks is copied; a site or preference different on each side is only shown.
 
-**Compare** lists every change, each one can be unticked, nothing is written before **Synchronize**. Dwarfium Lite must be stopped on both sides (the hub stops its own; for a folder you confirm it). A zip of both installations is made first, in their `sync_backups` folder.
+**Compare** lists every change, each one can be unticked, nothing is written before **Synchronize**. Dwarfium Lite must be stopped on both sides: **Synchronize** stops the hub's own (and starts it again after) — one started outside the hub must be closed first; for another folder you confirm it is stopped. A zip of both installations is made first, in their `sync_backups` folder.
 
 ## Install
 

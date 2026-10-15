@@ -97,12 +97,9 @@ class SyncView:
         return any(k and k != HUB_LITE for k in (self.a, self.b))
 
     def _can_write(self) -> bool:
-        return not self._hub_lite_running() and (self.confirmed_stopped or not self._other_folder_used())
-
-    async def stop_hub_lite(self) -> None:
-        await self.lite.stop()
-        await self.lite.update_state()
-        self.render.refresh()
+        """The hub's own Dwarfium Lite is stopped by apply() itself; another
+        folder's can't be stopped from here: the user confirms it."""
+        return self.confirmed_stopped or not self._other_folder_used()
 
     # ── compare / apply ───────────────────────────────────────────────────
     async def compare(self) -> None:
@@ -131,6 +128,16 @@ class SyncView:
         a, b = self._path(self.a), self._path(self.b)
         self.busy = True
         self.render.refresh()
+        # The hub's Dwarfium Lite: stopped for the sync, started again after
+        restart = self._hub_lite_running()
+        if restart:
+            self.page.notify(t("sy_stopping_lite"), type="info")
+            await self.lite.stop()
+            if self.lite.active:
+                self.busy = False
+                self.page.notify(t("sy_stop_failed"), type="negative", multi_line=True)
+                self.render.refresh()
+                return
         try:
             result = await run.io_bound(S.apply, a, b, self.actions)
             self.page.notify(t("sy_done", n=result["done"]) + "\n" + t("sy_backups", paths="\n".join(result["backups"])),
@@ -139,6 +146,8 @@ class SyncView:
             self.page.notify(t("failed", e=e), type="negative", multi_line=True)
         finally:
             self.busy = False
+            if restart:
+                await self.lite.start(notify=False)
         await self.compare()        # what is left: nothing but the conflicts
 
     # ── display ───────────────────────────────────────────────────────────
@@ -183,7 +192,6 @@ class SyncView:
                 with ui.row().classes("items-center gap-2"):
                     ui.icon("pause_circle", color="orange")
                     ui.label(t("sy_hub_lite_running")).classes("text-sm")
-                    ui.button(t("dw_stop_lite"), icon="stop", on_click=self.stop_hub_lite).props("dense flat color=negative")
             if self._other_folder_used():
                 ui.checkbox(t("sy_confirm_stopped"), value=self.confirmed_stopped,
                             on_change=lambda e: (setattr(self, "confirmed_stopped", e.value), self.render.refresh())) \
