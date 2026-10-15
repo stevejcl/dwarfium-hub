@@ -1,6 +1,11 @@
 # Changelog
 
 ## [0.1.2] - 2026-10-16
+  ### BugFix
+    ### Windows: ConnectionResetError at exit
+    "Exception in callback _ProactorBasePipeTransport._call_connection_lost ... WinError 10054" printed when the hub
+    closes (the window's connection already reset): harmless cleanup noise, now logged at DEBUG only - the same
+    filter as Dwarfium Lite's.
   ### Add
     ### Synchronize tab
     Two Dwarfium Lite installations merged both ways - the hub's, a source run, a laptop's, a mini PC's through a
