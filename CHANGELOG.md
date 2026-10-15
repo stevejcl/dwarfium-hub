@@ -32,6 +32,12 @@
     Help "Troubleshooting the network": a name giving "network path not found" while the IP works (resolved to a
     local IPv6 address) - the full Tailscale name or the IP instead; PowerShell tests (ports 445 and 8090,
     tailscale status); firewall, mapped drive, fixed home IP.
+    ### Dwarfs tab: another installation
+    A Dwarfium Lite list: this PC's or an instance with a shared folder - its Dwarfs read and changed through the
+    folder, only when the instance says Dwarfium Lite is stopped there (or, no address to ask, when confirmed); its
+    links to Scope Archive written with Scope Archive's address as that computer reaches it (kept per instance, this
+    PC's name by default - its Tailscale name works at home and away). Identify and its pages through that
+    instance's Dwarfium Lite.
 
 ## [0.1.1] - 2026-10-13
   ### Add
