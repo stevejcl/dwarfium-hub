@@ -37,6 +37,16 @@ The **Dwarfs** tab shows the Dwarfs of both applications side by side. Linked, a
 
 Dwarfium Lite reads its Dwarfs when it starts: its side is only changed while it is stopped, and only the lines concerned (`dwarfium_id`, `dwarfium_base_url` in `config_*.ini`, `DWARF_IP`, the name in `devices.json`). Scope Archive's database is copied to `db/dwarf_backup.db.hub` before the hub's first change.
 
+## Synchronize
+
+The **Synchronize** tab merges two Dwarfium Lite installations both ways: the hub's own, a source run, a laptop taken to the field, a mini PC (add its folder through a Windows share, `\\minipc\folder`).
+
+- **Dwarfs** — a Dwarf one side lacks is copied there (its `config_*.py` / `.ini`, its programs). The same Dwarf is recognized by its ID, even under another config name (`config_d3` here, `config_dwarf3` there); its name and IP are left as they are on each side.
+- **Programs** — found by their uuid. One missing on a side is copied; at two stages, the most advanced wins (Done / Error over Current over ToDo), the latest written at the same stage. A program to run copied to the other side is flagged: run it from one installation only.
+- **Results, sites, preferences** — what one side lacks is copied; a site or preference different on each side is only shown.
+
+**Compare** lists every change, each one can be unticked, nothing is written before **Synchronize**. Dwarfium Lite must be stopped on both sides (the hub stops its own; for a folder you confirm it). A zip of both installations is made first, in their `sync_backups` folder.
+
 ## Install
 
 Download `DwarfiumHub-<Windows|Linux|macOS>.zip` from the [releases](https://github.com/stevejcl/dwarfium-hub/releases), unzip it anywhere and run `DwarfiumHub`. The applications are installed in `C:\Dwarfium` on Windows, `~/Dwarfium` elsewhere — **Change** at the top of the hub picks another folder.

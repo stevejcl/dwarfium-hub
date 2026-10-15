@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.2] - 2026-10-16
+  ### Add
+    ### Synchronize tab
+    Two Dwarfium Lite installations merged both ways - the hub's, a source run, a laptop's, a mini PC's through a
+    Windows share (folders added here, kept in hub_config.json). Dwarfs a side lacks (config files and programs),
+    found by their ID whatever their config name; programs by their uuid: missing ones copied, at two stages the most
+    advanced kept (Done / Error > Current > ToDo; the latest at the same stage); results, sites and preferences a side
+    lacks; a site or preference different on each side only shown. A preview lists every change (each can be
+    unticked), a program to run copied to the other side is flagged (double capture). Dwarfium Lite stopped on both
+    sides (the hub's stopped from here, another folder confirmed); a zip of both in their sync_backups folder first.
+
 ## [0.1.1] - 2026-10-13
   ### Add
     ### Dwarfs tab
