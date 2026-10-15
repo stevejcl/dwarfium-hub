@@ -19,8 +19,11 @@ become instances with a share only.
 """
 from __future__ import annotations
 
+import ftplib
 import socket
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -71,6 +74,8 @@ class Dwarf:
     connected: bool
     busy: bool
     pending: bool
+    ip: str = ""
+    ftp: bool | None = None     # its FTP reached from this PC (None: not asked)
 
 
 @dataclass
@@ -111,12 +116,60 @@ def dwarfs(host: str, port: int) -> list[Dwarf]:
         if uid.startswith("auto:"):
             continue
         result.append(Dwarf(str(d.get("name") or uid), uid, str(d.get("model") or ""),
-                            bool(d.get("connected")), bool(d.get("busy")), bool(d.get("hasPending"))))
+                            bool(d.get("connected")), bool(d.get("busy")), bool(d.get("hasPending")),
+                            str(d.get("ip") or "")))
     return result
 
 
-def status(host: str, port: int) -> Status:
-    """Blocking. What answers at host:port."""
+# ── a Dwarf's FTP from this PC ─────────────────────────────────────────────
+# Scope Archive downloads a Dwarf's images by FTP (port 21): from the home
+# PC, a Dwarf on a remote site's network is reached only through a Tailscale
+# subnet router there. Asked once in a while, not at every refresh: the
+# Dwarf's FTP server is not to be bothered every 20 s during a capture.
+FTP_TTL_S = 300
+_ftp_cache: dict[str, tuple[float, bool]] = {}
+
+
+def ftp_ok(ip: str, fresh: bool = False) -> bool:
+    """Blocking. The Dwarf's FTP server answers (its welcome line)."""
+    cached = _ftp_cache.get(ip)
+    if cached and not fresh and time.monotonic() - cached[0] < FTP_TTL_S:
+        return cached[1]
+    ok = False
+    ftp = ftplib.FTP()
+    try:
+        ftp.connect(ip, 21, timeout=_TIMEOUT_S)
+        ok = True
+    except (OSError, EOFError, ftplib.Error):
+        ok = False
+    finally:
+        try:
+            ftp.close()
+        except OSError:
+            pass
+    _ftp_cache[ip] = (time.monotonic(), ok)
+    return ok
+
+
+def check_ftp(found: list[Dwarf], fresh: bool = False) -> None:
+    """Blocking. ftp set on the connected Dwarfs that have an IP."""
+    asked = [d for d in found if d.ip and d.connected]
+    if not asked:
+        return
+    with ThreadPoolExecutor(max_workers=min(4, len(asked))) as pool:
+        for d, ok in zip(asked, pool.map(lambda d: ftp_ok(d.ip, fresh), asked)):
+            d.ftp = ok
+
+
+def subnet_of(ip: str) -> str:
+    """The /24 network of an IPv4 address (the usual home / site Wi-Fi)."""
+    parts = ip.split(".")
+    return ".".join(parts[:3]) + ".0/24" if len(parts) == 4 else ""
+
+
+def status(host: str, port: int, fresh: bool = False) -> Status:
+    """Blocking. What answers at host:port (fresh: its Dwarfs' FTP asked
+    again now)."""
     if not host:
         return Status(NO_ADDRESS)
     state = _reachable(host, port)
@@ -129,7 +182,9 @@ def status(host: str, port: int) -> Status:
         return Status(OTHER)
     if not isinstance(info, dict) or info.get("app") != "astro_dwarf_session":
         return Status(OTHER)
-    return Status(ACTIVE, str(info.get("version") or ""), dwarfs(host, port))
+    found = dwarfs(host, port)
+    check_ftp(found, fresh)
+    return Status(ACTIVE, str(info.get("version") or ""), found)
 
 
 def share_ok(share: str) -> bool:
@@ -160,13 +215,13 @@ def addresses(inst: dict) -> list[tuple[str, str]]:
 _ANSWERED = {STOPPED: 2, OTHER: 2, UNREACHABLE: 1}
 
 
-def status_of(inst: dict) -> Status:
+def status_of(inst: dict, fresh: bool = False) -> Status:
     """Blocking. The first address with Dwarfium Lite running, else the
     one that said the most."""
     port = int(inst.get("port") or DEFAULT_PORT)
     best: Status | None = None
     for via, host in addresses(inst):
-        st = status(host, port)
+        st = status(host, port, fresh)
         st.via, st.host = via, host
         if st.state == ACTIVE:
             return st
