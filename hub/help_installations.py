@@ -79,6 +79,7 @@ Tests, in PowerShell on this PC:
 
 - `False` on port 445: on the remote computer, share the folder, allow *File and printer sharing* in the firewall for the network profile in use (Tailscale is often *Public*), or set the home network to *Private*.
 - `False` on Dwarfium Lite's port: allow it in the firewall (Windows asks the first time it starts - tick public networks too for Tailscale).
+- The computer shows in Explorer's *Network* pane but doesn't open: a Windows discovery quirk (it lists through network discovery, opens through local name resolution). Type the path in the address bar instead - the hub only uses the path you give it.
 - A mapped drive (`W:\\`) works but belongs to your Windows session: the full `\\\\...` path is safer.
 - Home address: reserve the computer's IP in your box (static DHCP lease) so it doesn't change.
 
@@ -162,6 +163,7 @@ Tests, dans PowerShell sur ce PC :
 
 - `False` sur le port 445 : sur l'ordinateur distant, partagez le dossier, autorisez *Partage de fichiers et d'imprimantes* dans le pare-feu pour le profil réseau utilisé (Tailscale est souvent *Public*), ou passez le réseau maison en *Privé*.
 - `False` sur le port de Dwarfium Lite : autorisez-le dans le pare-feu (Windows le demande au premier démarrage - cochez aussi les réseaux publics pour Tailscale).
+- L'ordinateur apparaît dans le volet *Réseau* de l'Explorateur mais ne s'ouvre pas : un défaut de la découverte de Windows (il liste par la découverte réseau, ouvre par la résolution de nom locale). Tapez plutôt le chemin dans la barre d'adresse - le hub n'utilise que le chemin que vous lui donnez.
 - Un lecteur réseau (`W:\\`) fonctionne mais dépend de votre session Windows : le chemin complet `\\\\...` est plus sûr.
 - Adresse maison : réservez l'IP de l'ordinateur dans votre box (bail DHCP statique) pour qu'elle ne change pas.
 
