@@ -49,7 +49,7 @@ Same thing as a trip, without leaving:
 
 - **Dwarfs** are recognized by their identifier (the end of their Bluetooth name), whatever their name on each side. Their **IP is never changed**: it can be different at home and in the field.
 - **A program at two stages**: the most advanced wins (*Done* / *Error* over *Current* over *ToDo*); at the same stage, the latest written.
-- **Sites and preferences**: what is missing on one side is copied; one different on each side is only shown, never overwritten.
+- **Sites and dashboard display** (a Dwarf hidden, the cards' order): what is missing on one side is copied - a Dwarf's display only with that Dwarf when the other side doesn't have it; one different on each side is only shown, never overwritten.
 - **Nothing is written before Synchronize**, every line can be unticked, and a **zip backup** of both installations is made first (in their `sync_backups` folder).
 - **A remote laptop or mini PC** (not on the home network): with Tailscale, the share works the same way (`\\\\tailscale-name\\share`) - see the README.
 """,
@@ -95,7 +95,7 @@ Comme pour un séjour, sans partir :
 
 - **Les Dwarfs** sont reconnus par leur identifiant (la fin de leur nom Bluetooth), quel que soit leur nom de chaque côté. Leur **IP n'est jamais modifiée** : elle peut être différente à la maison et sur le terrain.
 - **Un programme à deux stades** : le plus avancé l'emporte (*Done* / *Error* sur *Current* sur *ToDo*) ; au même stade, le plus récent.
-- **Lieux et préférences** : ce qui manque d'un côté est copié ; un lieu différent de chaque côté est seulement signalé, jamais écrasé.
+- **Lieux et affichage du tableau de bord** (un Dwarf masqué, l'ordre des cartes) : ce qui manque d'un côté est copié - l'affichage d'un Dwarf seulement avec ce Dwarf quand l'autre côté ne l'a pas ; un élément différent de chaque côté est seulement signalé, jamais écrasé.
 - **Rien n'est écrit avant Synchroniser**, chaque ligne peut être décochée, et une **sauvegarde zip** des deux installations est faite avant (dans leur dossier `sync_backups`).
 - **Un portable ou un mini PC à distance** (pas sur le réseau de la maison) : avec Tailscale, le partage fonctionne de la même façon (`\\\\nom-tailscale\\partage`) - voir le README.
 """,

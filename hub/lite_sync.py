@@ -99,6 +99,10 @@ class Action:
     device_entry: dict | None = None     # a devices.json entry to add (DEVICE)
     json_merge: tuple[str, str, dict] | None = None   # (file, key, value) (SITE / PREF)
     detail_args: dict = field(default_factory=dict)   # the detail text's values
+    # A DEVICE action: its Dwarf's key. A PREF action of a Dwarf the other
+    # side lacks: the key of the DEVICE action it follows (ticked with it)
+    dwarf_key: str = ""
+    follows: str = ""
 
 
 # ── reading ──────────────────────────────────────────────────────────────
@@ -218,6 +222,7 @@ def _device_actions(src: Snapshot, dst: Snapshot, direction: str, taken: set[str
             copies=copies,
             device_entry={"name": dev.dwarf.name, "config_py": new_py,
                           "config_ini": new_ini if dev.dwarf.config_ini else ""},
+            dwarf_key=key,
         ))
     return actions
 
@@ -290,6 +295,44 @@ def _dict_actions(kind: str, file: str, a: dict, b: dict, label) -> list[Action]
     return actions
 
 
+def _pref_detail(value: dict) -> tuple[str, dict]:
+    """What a Dwarf's dashboard preferences say (Dwarfium Lite's
+    device_prefs.py: hidden, position from 0)."""
+    hidden = bool(value.get("hidden")) if isinstance(value, dict) else False
+    pos = value.get("position") if isinstance(value, dict) else None
+    if isinstance(pos, int):
+        return ("sy_d_pref_hidden_pos" if hidden else "sy_d_pref_pos"), {"pos": pos + 1}
+    return ("sy_d_pref_hidden" if hidden else "sy_d_pref_shown"), {}
+
+
+def _pref_actions(a: Snapshot, b: Snapshot) -> list[Action]:
+    """device_prefs.json, by Dwarf: what one side lacks is copied - for a
+    Dwarf the other side doesn't have, ticked with that Dwarf's own copy
+    (and not proposed at all for a Dwarf neither side has)."""
+    def key_of(snap: Snapshot, uid: str) -> str:
+        dev = next((d for d in snap.devices.values() if d.dwarf.uid == uid), None)
+        return dev.key if dev else (normalize_ble_id(uid) or "")
+
+    names = {d.dwarf.uid: d.dwarf.name for s in (a, b) for d in s.devices.values()}
+    actions = []
+    for uid in sorted(set(a.prefs) | set(b.prefs)):
+        va, vb = a.prefs.get(uid), b.prefs.get(uid)
+        if va is not None and vb is not None:
+            if va != vb:
+                actions.append(Action(CONFLICT, "", "", names.get(uid, uid), "sy_d_differs", selected=False,
+                                      detail_args={"file": "device_prefs.json"}))
+            continue
+        src, dst, value, direction = (a, b, va, A2B) if va is not None else (b, a, vb, B2A)
+        key = key_of(src, uid) or key_of(dst, uid)
+        if key not in src.devices and key not in dst.devices:
+            continue            # a Dwarf removed from both: nothing to show
+        detail, args = _pref_detail(value)
+        follows = key if key not in dst.devices else ""
+        actions.append(Action(PREF, direction, "", names.get(uid, uid), detail, detail_args=args,
+                              json_merge=("device_prefs.json", uid, value), follows=follows))
+    return actions
+
+
 def compare(a: Snapshot, b: Snapshot) -> list[Action]:
     """Every action that would make both installations hold the same
     things, A2B / B2A, plus CONFLICT rows (shown, never applied)."""
@@ -304,8 +347,7 @@ def compare(a: Snapshot, b: Snapshot) -> list[Action]:
         actions += _program_actions(a.devices[key], b.devices[key])
         actions += _result_actions(a.devices[key], b.devices[key])
     actions += _dict_actions(SITE, "sites.json", a.sites, b.sites, lambda k: k)
-    names = {d.dwarf.uid: d.dwarf.name for s in (a, b) for d in s.devices.values()}
-    actions += _dict_actions(PREF, "device_prefs.json", a.prefs, b.prefs, lambda k: names.get(k, k))
+    actions += _pref_actions(a, b)
     return actions
 
 

@@ -9,6 +9,10 @@
     ### Synchronize: the count follows the ticks
     The preview's "n change(s)" didn't change when lines were unticked: now "s of n change(s) selected", updated at
     each tick, with Tick all / Untick all; Synchronize disabled when nothing is ticked.
+    ### Synchronize: dashboard display
+    "Preferences - missing" said nothing: now "Dashboard display - missing - hidden, position 2" (Dwarfium Lite's
+    device_prefs.json). A Dwarf's display, when the other side doesn't have that Dwarf, is ticked with the Dwarf's
+    own copy (unticking the Dwarf unticks it); not proposed for a Dwarf neither side has any more.
   ### Add
     ### Synchronize tab
     Two Dwarfium Lite installations merged both ways - the hub's, a source run, a laptop's, a mini PC's through a
