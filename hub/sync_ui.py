@@ -5,7 +5,8 @@ preview where every change can be unticked.
 
 Dwarfium Lite must be stopped on both sides: for the hub's installation
 the hub knows it (and can stop it), for another folder the user confirms.
-The folders added here are kept in hub_config.json ("sync_folders").
+The folders added here are the shares of the hub's instances
+(hub/instances.py, also edited in the Installations tab).
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from nicegui import run, ui
 
-from hub import config
+from hub import config, instances
 from hub.help_sync import help_sync
 from hub import lite_sync as S
 from hub.i18n import t
@@ -49,14 +50,15 @@ class SyncView:
 
     # ── installations ─────────────────────────────────────────────────────
     def _folders(self) -> list[str]:
-        return list(self.page.cfg.setdefault("sync_folders", []))
+        return instances.shares(self.page.cfg)
 
     def _options(self) -> dict[str, str]:
         options = {}
         if self.lite.installed():
             options[HUB_LITE] = t("sy_hub_install", path=str(self.lite.folder))
         for folder in self._folders():
-            options[folder] = folder
+            name = self._label(folder)
+            options[folder] = folder if name == Path(folder).name else f"{name} ({folder})"
         return options
 
     def _path(self, key: str) -> Path:
@@ -65,7 +67,10 @@ class SyncView:
     def _label(self, key: str | None) -> str:
         if key is None:
             return "?"
-        return t("sy_hub_short") if key == HUB_LITE else Path(key).name or key
+        if key == HUB_LITE:
+            return t("sy_hub_short")
+        inst = instances.by_share(self.page.cfg, key)
+        return inst["name"] if inst and inst.get("name") else Path(key).name or key
 
     async def add_folder(self) -> None:
         chosen = await self.page.pick_folder(t("sy_add_hint"))
@@ -74,20 +79,27 @@ class SyncView:
         if not (Path(chosen) / "devices.json").is_file():
             self.page.notify(t("sy_not_lite", path=chosen), type="warning", multi_line=True)
             return
-        folders = self.page.cfg.setdefault("sync_folders", [])
-        if chosen not in folders:
-            folders.append(chosen)
+        if chosen not in self._folders():
+            self.page.cfg.setdefault("instances", []).append(
+                {"id": instances.new_id(), "name": Path(chosen).name or chosen, "kind": "other",
+                 "access": instances.LAN, "host": "", "port": instances.DEFAULT_PORT, "share": chosen})
             config.save(self.page.cfg)
+            self.page.installations.render.refresh()
         if self.b is None:
             self.b = chosen
         self.actions = None
         self.render.refresh()
 
     def remove_folder(self, key: str) -> None:
-        folders = self.page.cfg.setdefault("sync_folders", [])
-        if key in folders:
-            folders.remove(key)
+        inst = instances.by_share(self.page.cfg, key)
+        if inst:
+            # An instance with an address stays on the map, without its share
+            if inst.get("host"):
+                inst["share"] = ""
+            else:
+                self.page.cfg["instances"].remove(inst)
             config.save(self.page.cfg)
+            self.page.installations.render.refresh()
         self.a = None if self.a == key else self.a
         self.b = None if self.b == key else self.b
         self.actions = None
@@ -134,10 +146,11 @@ class SyncView:
             self.startup[folder] = n
         differing = [f for f, n in self.startup.items() if n > 0]
         if differing:
-            self.page.notify(t("sy_startup_notice", names=", ".join(Path(f).name or f for f in differing)),
+            self.page.notify(t("sy_startup_notice", names=", ".join(self._label(f) for f in differing)),
                              type="info", multi_line=True, timeout=10000)
         if not self.busy:
             self.render.refresh()
+        self.page.installations.render.refresh()
 
     async def compare_with(self, folder: str) -> None:
         self.a, self.b, self.actions = HUB_LITE, folder, None
@@ -154,6 +167,11 @@ class SyncView:
         try:
             self.actions = await run.io_bound(lambda: S.compare(S.read(a), S.read(b)))
             self.compared = (self.a, self.b)
+            # The hub's installation against a folder: what the map shows for it
+            if HUB_LITE in self.compared:
+                other = self.b if self.a == HUB_LITE else self.a
+                self.startup[other] = sum(1 for x in self.actions if x.kind != S.CONFLICT)
+                self.page.installations.render.refresh()
         except (S.SyncError, OSError) as e:
             self.actions = None
             self.page.notify(t("failed", e=e), type="negative", multi_line=True)
@@ -216,7 +234,7 @@ class SyncView:
         with ui.card().classes("w-full p-3 gap-1"):
             ui.label(t("sy_startup_title")).classes("text-sm font-medium")
             for folder, n in self.startup.items():
-                name = Path(folder).name or folder
+                name = self._label(folder)
                 with ui.row().classes("w-full items-center gap-2 no-wrap").tooltip(folder):
                     if n == UNREACHABLE:
                         ui.icon("cloud_off", color="grey")
@@ -258,7 +276,7 @@ class SyncView:
             with ui.row().classes("items-center gap-2 flex-wrap"):
                 ui.button(t("sy_add_folder"), icon="create_new_folder", on_click=self.add_folder).props("flat dense no-caps")
                 for key in self._folders():
-                    ui.chip(Path(key).name or key, icon="folder", removable=True,
+                    ui.chip(self._label(key), icon="folder", removable=True,
                             on_value_change=lambda e, k=key: None if e.value else self.remove_folder(k)) \
                         .props("dense outline").tooltip(key)
             ui.label(t("sy_share_hint")).classes("text-xs text-gray-500")
