@@ -21,7 +21,7 @@ import socket
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from nicegui import run, ui
 
@@ -102,6 +102,7 @@ class DwarfsView:
         if value != inst.get("archive_url", ""):
             inst["archive_url"] = value
             config.save(self.page.cfg)
+            self.render.refresh()       # the links to update with it
 
     # ── data ──────────────────────────────────────────────────────────────
     def _read(self) -> None:
@@ -175,6 +176,39 @@ class DwarfsView:
                 new_id = D.create_archive(self.archive.folder, r.lite)
                 D.link(self.lite_folder, r.lite, new_id, self._archive_url())
         await self._do(action, t("dw_created_all_ok", n=len(rows)))
+
+    @staticmethod
+    def _same_url(a: str, b: str) -> bool:
+        def norm(url: str) -> str:
+            return (url or "").strip().rstrip("/").lower().replace("://127.0.0.1", "://localhost")
+        return norm(a) == norm(b)
+
+    def _stale_url(self, row: D.Row) -> bool:
+        """A link written with another Scope Archive address than the one
+        this Dwarfium Lite reaches it at (another port, localhost on a
+        remote computer, an old name)."""
+        if row.status != D.LINKED:
+            return False
+        current = row.lite.dwarfium_base_url
+        if self._inst() is None:
+            # This PC: localhost or its name both reach it - only the port matters
+            try:
+                return urlsplit(current or "").port != self.archive.port
+            except ValueError:      # not a valid address
+                return True
+        return not self._same_url(current, self._archive_url())
+
+    async def update_url(self, row: D.Row) -> None:
+        await self._do(lambda: D.link(self.lite_folder, row.lite, row.archive.id, self._archive_url()),
+                       t("dw_url_updated_ok", n=1))
+
+    async def update_all_urls(self) -> None:
+        rows = [r for r in self.rows if self._stale_url(r)]
+
+        def action():
+            for r in rows:
+                D.link(self.lite_folder, r.lite, r.archive.id, self._archive_url())
+        await self._do(action, t("dw_url_updated_ok", n=len(rows)))
 
     async def copy(self, row: D.Row, what: str, to_archive: bool) -> None:
         lite, archive = row.lite, row.archive
@@ -357,6 +391,12 @@ class DwarfsView:
                             self._lite_button(t(f"dw_{what}_to_lite"), None,
                                               lambda r=row, w=what: self.copy(r, w, False), flat=True)
                     self._lite_button(t("dw_unlink"), "link_off", lambda r=row: self.unlink(r), flat=True)
+                    if self._stale_url(row):
+                        with ui.row().classes("w-full items-center gap-2 no-wrap"):
+                            ui.icon("swap_horiz", color="orange", size="xs")
+                            ui.label(t("dw_url_differs", old=row.lite.dwarfium_base_url or "—",
+                                       new=self._archive_url())).classes("text-xs text-orange-700 flex-1 break-all")
+                            self._lite_button(t("dw_update_url"), "sync", lambda r=row: self.update_url(r), flat=True)
                 elif row.status in (D.LITE_ONLY, D.BROKEN):
                     if self.archive_dwarfs is not None:
                         # never a Dwarf whose identifier says it is another one
@@ -415,8 +455,11 @@ class DwarfsView:
 
             suggested = sum(r.status == D.SUGGESTED for r in self.rows)
             lite_only = sum(r.status == D.LITE_ONLY for r in self.rows)
-            if (suggested > 1 or lite_only > 1) and self.archive_dwarfs is not None:
+            stale = sum(self._stale_url(r) for r in self.rows)
+            if (suggested > 1 or lite_only > 1 or stale > 1) and self.archive_dwarfs is not None:
                 with ui.row().classes("gap-2"):
+                    if stale > 1:
+                        self._lite_button(t("dw_update_url_all", n=stale), "sync", self.update_all_urls)
                     if suggested > 1:
                         self._lite_button(t("dw_link_all", n=suggested), "link", self.link_all)
                     if lite_only > 1:

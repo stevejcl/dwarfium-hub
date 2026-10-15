@@ -43,6 +43,8 @@
     links to Scope Archive written with Scope Archive's address as that computer reaches it (kept per instance, this
     PC's name by default - its Tailscale name works at home and away). Identify and its pages through that
     instance's Dwarfium Lite.
+    A link written with another Scope Archive address than that one (an old name, localhost on a remote computer,
+    another port - on this PC only the port counts) shown on its row, with Update the address (one, or all).
 
 ## [0.1.1] - 2026-10-13
   ### Add
