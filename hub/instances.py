@@ -22,7 +22,7 @@ from pathlib import Path
 
 import requests
 
-KINDS = ("dev", "laptop", "minipc", "other")
+KINDS = ("release", "dev", "laptop", "minipc", "other")
 LAN, TAILSCALE = "lan", "tailscale"
 DEFAULT_PORT = 8090
 
