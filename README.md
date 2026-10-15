@@ -50,6 +50,8 @@ The **Installations** tab is a map of the Dwarfium Lite installations you use. T
 
 A **Help** button explains the setup step by step, Tailscale included (install on both machines, MagicDNS name, sharing and the Windows firewall for the Tailscale network).
 
+**Troubleshooting** — "network path not found" with a computer's name while its IP works: Windows resolved the name to another address (often a local IPv6 one, `fe80::...`). Use the full Tailscale name (`\\pc-name.tailXXXX.ts.net\share`) or the IP (`\\100.x.y.z\share`, it never changes). In PowerShell, `Test-NetConnection <ip> -Port 445` (sharing) and `-Port 8090` (Dwarfium Lite) tell what is reachable; `tailscale status` lists the Tailscale names. The Help of the tab has the details.
+
 ## Synchronize
 
 The **Synchronize** tab merges two Dwarfium Lite installations both ways: the hub's own, a source run, a laptop taken to the field, a mini PC (add its folder through a Windows share, `\\minipc\folder` - or give it to the instance in the Installations tab).

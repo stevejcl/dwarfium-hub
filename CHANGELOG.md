@@ -29,6 +29,9 @@
     FTP badge on each connected Dwarf: its FTP (what Scope Archive downloads from) reached from this PC or not -
     asked every 5 minutes, again with the refresh button or Check; for a Dwarf on a remote site, the Tailscale
     subnet route to add (its network in the tooltip, the steps in the Help).
+    Help "Troubleshooting the network": a name giving "network path not found" while the IP works (resolved to a
+    local IPv6 address) - the full Tailscale name or the IP instead; PowerShell tests (ports 445 and 8090,
+    tailscale status); firewall, mapped drive, fixed home IP.
 
 ## [0.1.1] - 2026-10-13
   ### Add
