@@ -18,11 +18,12 @@ def open_page(port: int, path: str) -> bool:
         return False
 
 
-def identify(port: int, ip: str) -> str:
+def identify(port: int, ip: str, host: str = "127.0.0.1") -> str:
     """Blocking. ok, busy, no_answer, occupied or failed - or lite_old
-    (a version without it), lite_unreachable."""
+    (a version without it), lite_unreachable. host: another installation's
+    Dwarfium Lite (the Dwarfs tab showing an instance)."""
     try:
-        response = requests.get(f"http://127.0.0.1:{port}/api/identify", params={"ip": ip},
+        response = requests.get(f"http://{host}:{port}/api/identify", params={"ip": ip},
                                 timeout=40, proxies=_NO_PROXY)
     except requests.RequestException:
         return "lite_unreachable"

@@ -6,16 +6,26 @@ other.
 
 Dwarfium Lite's files are only changed while it is stopped (it reads them
 when it starts): those buttons wait for it to be stopped.
+
+The Dwarfium Lite shown is this PC's, or an instance of the Installations
+tab with a shared folder (user-requested Oct 2026): its files read and
+written through the share. Changed only when the instance says Dwarfium
+Lite is stopped (the computer answers, not Dwarfium Lite) - or, without
+an address to ask, when the user confirms it. Its link to Scope Archive is
+written with the address of this PC's Scope Archive as that computer
+reaches it (its Tailscale name), kept per instance ("archive_url").
 """
 from __future__ import annotations
 
+import socket
 import webbrowser
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
 from nicegui import run, ui
 
-from hub import dwarfs as D
+from hub import config, dwarfs as D, instances as I
 from hub import lite_api
 from hub import runner
 from hub.i18n import t
@@ -33,6 +43,10 @@ class DwarfsView:
         self.error = ""
         self.loaded = False
         self.archive_keeps_ids = False     # Scope Archive V3.4.3+
+        # The Dwarfium Lite shown: None this PC's, else an instance id
+        self.target: str | None = None
+        self.remote: I.Status | None = None     # that instance's state, asked at each reload
+        self.confirmed_stopped = False
 
     @property
     def lite(self) -> "AppCard":
@@ -42,16 +56,63 @@ class DwarfsView:
     def archive(self) -> "AppCard":
         return self.page.card("scope_archive")
 
+    # ── which Dwarfium Lite ───────────────────────────────────────────────
+    def _instances(self) -> list[dict]:
+        return [i for i in self.page.cfg.get("instances", []) if i.get("share")]
+
+    def _inst(self) -> dict | None:
+        if self.target is None:
+            return None
+        inst = next((i for i in self._instances() if i["id"] == self.target), None)
+        if inst is None:            # removed meanwhile
+            self.target = None
+        return inst
+
+    @property
+    def lite_folder(self) -> Path:
+        inst = self._inst()
+        return Path(inst["share"]) if inst else self.lite.folder
+
+    def _remote_running(self) -> bool:
+        return self.remote is not None and self.remote.state == I.ACTIVE
+
     def lite_locked(self) -> bool:
         """Dwarfium Lite's files can't be changed while it runs (or while
         the hub doesn't know yet whether it runs)."""
-        return self.lite.state is None or self.lite.active
+        inst = self._inst()
+        if inst is None:
+            return self.lite.state is None or self.lite.active
+        if self.remote is not None and self.remote.state == I.STOPPED:
+            return False
+        # Nothing to ask (no address) or no answer: the user says so
+        return self._remote_running() or not self.confirmed_stopped
+
+    def _default_archive_url(self) -> str:
+        return f"http://{socket.gethostname().lower()}:{self.archive.port}"
+
+    async def _select_target(self, value: str) -> None:
+        self.target = None if value == "local" else value
+        self.confirmed_stopped = False
+        self.loaded = False
+        self.render.refresh()
+        await self.reload()
+
+    def _set_archive_url(self, inst: dict, value: str) -> None:
+        value = (value or "").strip().rstrip("/")
+        if value != inst.get("archive_url", ""):
+            inst["archive_url"] = value
+            config.save(self.page.cfg)
 
     # ── data ──────────────────────────────────────────────────────────────
     def _read(self) -> None:
         self.error = ""
+        inst = self._inst()
+        self.remote = I.status_of(inst) if inst else None
         try:
-            self.lite_dwarfs = D.read_lite(self.lite.folder) if self.lite.installed() else []
+            if inst is not None and not I.share_ok(inst["share"]):
+                raise D.DwarfsError(t("in_chk_share_bad", path=inst["share"]))
+            lite_there = inst is not None or self.lite.installed()
+            self.lite_dwarfs = D.read_lite(self.lite_folder) if lite_there else []
             self.archive_dwarfs = D.read_archive(self.archive.folder) if self.archive.installed() else None
             self.archive_keeps_ids = self.archive_dwarfs is not None and D.archive_has_ble_id(self.archive.folder)
         except D.DwarfsError as e:
@@ -79,20 +140,23 @@ class DwarfsView:
 
     # ── actions ───────────────────────────────────────────────────────────
     def _archive_url(self) -> str:
-        return D.archive_url(self.archive.port)
+        inst = self._inst()
+        if inst is None:
+            return D.archive_url(self.archive.port)
+        return inst.get("archive_url") or self._default_archive_url()
 
     async def link(self, row: D.Row, archive: D.ArchiveDwarf | None = None) -> None:
         target = archive or row.archive
-        await self._do(lambda: D.link(self.lite.folder, row.lite, target.id, self._archive_url()),
+        await self._do(lambda: D.link(self.lite_folder, row.lite, target.id, self._archive_url()),
                        t("dw_linked_ok", lite=row.lite.name, archive=target.name))
 
     async def unlink(self, row: D.Row) -> None:
-        await self._do(lambda: D.link(self.lite.folder, row.lite, None, ""), t("dw_unlinked_ok", lite=row.lite.name))
+        await self._do(lambda: D.link(self.lite_folder, row.lite, None, ""), t("dw_unlinked_ok", lite=row.lite.name))
 
     async def create_in_archive(self, row: D.Row) -> None:
         def action():
             new_id = D.create_archive(self.archive.folder, row.lite)
-            D.link(self.lite.folder, row.lite, new_id, self._archive_url())
+            D.link(self.lite_folder, row.lite, new_id, self._archive_url())
         await self._do(action, t("dw_created_ok", name=row.lite.name))
 
     async def link_all(self) -> None:
@@ -100,7 +164,7 @@ class DwarfsView:
 
         def action():
             for r in rows:
-                D.link(self.lite.folder, r.lite, r.archive.id, self._archive_url())
+                D.link(self.lite_folder, r.lite, r.archive.id, self._archive_url())
         await self._do(action, t("dw_linked_all_ok", n=len(rows)))
 
     async def create_all(self) -> None:
@@ -109,7 +173,7 @@ class DwarfsView:
         def action():
             for r in rows:
                 new_id = D.create_archive(self.archive.folder, r.lite)
-                D.link(self.lite.folder, r.lite, new_id, self._archive_url())
+                D.link(self.lite_folder, r.lite, new_id, self._archive_url())
         await self._do(action, t("dw_created_all_ok", n=len(rows)))
 
     async def copy(self, row: D.Row, what: str, to_archive: bool) -> None:
@@ -118,14 +182,20 @@ class DwarfsView:
             action = lambda: D.set_archive_ble_id(self.archive.folder, archive.id, D.normalize_ble_id(lite.uid))
         elif what == "name":
             action = (lambda: D.set_archive_name(self.archive.folder, archive.id, lite.name)) if to_archive else \
-                     (lambda: D.set_lite_name(self.lite.folder, lite, archive.name))
+                     (lambda: D.set_lite_name(self.lite_folder, lite, archive.name))
         else:
             action = (lambda: D.set_archive_ip(self.archive.folder, archive.id, lite.ip)) if to_archive else \
-                     (lambda: D.set_lite_ip(self.lite.folder, lite, archive.ip))
+                     (lambda: D.set_lite_ip(self.lite_folder, lite, archive.ip))
         await self._do(action, t("dw_copied_ok"))
 
     async def _lite_up(self) -> bool:
-        """Dwarfium Lite running, started first if needed."""
+        """Dwarfium Lite running, started first if needed (an instance's
+        can't be started from here)."""
+        inst = self._inst()
+        if inst is not None:
+            if not self._remote_running():
+                self.page.notify(t("dw_remote_not_running", name=inst.get("name") or ""), type="warning")
+            return self._remote_running()
         if self.lite.running:
             return True
         if self.lite.state is not None and self.lite.state.state == runner.OTHER:
@@ -140,6 +210,10 @@ class DwarfsView:
         if not await self._lite_up():
             return
         target = path + (f"?{urlencode(params)}" if params else "")
+        if self._inst() is not None:    # in this PC's browser, not that computer's window
+            await run.io_bound(webbrowser.open, f"http://{self.remote.host}:{self._remote_port()}{target}")
+            self.page.notify(t("dw_opened_in_browser"), type="info", multi_line=True)
+            return
         if await run.io_bound(lite_api.open_page, self.lite.port, target):
             self.page.notify(t("dw_opened_in_lite"), type="positive")
         else:
@@ -152,7 +226,10 @@ class DwarfsView:
         if not await self._lite_up():
             return
         self.page.notify(t("identify_running"), type="info")
-        result = await run.io_bound(lite_api.identify, self.lite.port, ip)
+        if self._inst() is not None:
+            result = await run.io_bound(lite_api.identify, self._remote_port(), ip, self.remote.host)
+        else:
+            result = await run.io_bound(lite_api.identify, self.lite.port, ip)
         self.page.notify(t(f"identify_{result}", ip=ip), type="positive" if result == "ok" else "warning",
                          multi_line=True)
 
@@ -162,6 +239,10 @@ class DwarfsView:
         await self.open_lite_page("/manual-config", {
             "name": a.name, "model": D.MODELS.get(a.model, ""), "ip": a.ip,
             "dwarfium_id": a.id, "dwarfium_base_url": self._archive_url()})
+
+    def _remote_port(self) -> int:
+        inst = self._inst()
+        return int((inst or {}).get("port") or I.DEFAULT_PORT)
 
     async def stop_lite(self) -> None:
         await self.lite.stop()
@@ -190,6 +271,38 @@ class DwarfsView:
             button.disable()
             button.tooltip(t("dw_stop_lite_first"))
         return button
+
+    def _target_bar(self) -> None:
+        """Which Dwarfium Lite: this PC's or an instance's (by its share)."""
+        instances = self._instances()
+        if not instances:
+            return
+        options = {"local": t("dw_target_local")}
+        options.update({i["id"]: f"{i.get('name') or i['share']} ({i['share']})" for i in instances})
+        ui.select(options, value=self.target or "local", label=t("dw_target"),
+                  on_change=lambda e: self._select_target(e.value)).classes("w-full max-w-xl")
+        inst = self._inst()
+        if inst is None:
+            return
+        name = inst.get("name") or inst["share"]
+        with ui.column().classes("w-full gap-2 bg-purple-50 rounded p-2"):
+            with ui.row().classes("items-center gap-2 text-sm no-wrap"):
+                if self._remote_running():
+                    ui.icon("circle", color="positive", size="xs")
+                    ui.label(t("dw_remote_running", name=name)).classes("flex-1")
+                elif self.remote is not None and self.remote.state == I.STOPPED:
+                    ui.icon("radio_button_unchecked", color="grey", size="xs")
+                    ui.label(t("dw_remote_stopped", name=name)).classes("flex-1")
+                else:
+                    ui.icon("help_outline", color="grey", size="xs")
+                    ui.label(t("dw_remote_unknown", name=name)).classes("flex-1")
+            if not self._remote_running() and not (self.remote is not None and self.remote.state == I.STOPPED):
+                ui.checkbox(t("dw_remote_confirm", name=name), value=self.confirmed_stopped,
+                            on_change=lambda e: (setattr(self, "confirmed_stopped", e.value), self.render.refresh())) \
+                    .classes("text-sm")
+            url = ui.input(t("dw_archive_url", name=name), value=self._archive_url()).classes("w-full")
+            url._props["hint"] = t("dw_archive_url_hint")
+            url.on("blur", lambda e, i=inst, u=url: self._set_archive_url(i, u.value))
 
     def _row(self, row: D.Row) -> None:
         status_icon = {D.LINKED: ("link", "positive", "dw_status_linked"),
@@ -271,7 +384,8 @@ class DwarfsView:
             if not self.loaded:
                 ui.spinner()
                 return
-            if not (self.lite.installed() and self.archive.installed()):
+            self._target_bar()
+            if not ((self._inst() is not None or self.lite.installed()) and self.archive.installed()):
                 ui.label(t("dw_install_both")).classes("text-gray-600")
                 return
             if self.error:
@@ -280,7 +394,7 @@ class DwarfsView:
                 with ui.row().classes("items-center gap-2 text-sm text-orange-800 bg-orange-50 rounded p-2 w-full"):
                     ui.icon("info")
                     ui.label(t("dw_archive_no_db"))
-            if self.lite_locked():
+            if self.lite_locked() and self._inst() is None:
                 with ui.row().classes("items-center gap-2 text-sm bg-blue-50 rounded p-2 w-full"):
                     ui.icon("info", color="primary")
                     ui.label(t("dw_lite_running")).classes("flex-1")
