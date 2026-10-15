@@ -14,6 +14,7 @@
     At startup, the hub's Dwarfium Lite compared in the background with each added folder: a notice when one
     differs, a line per folder in the tab (the same / n changes with Compare / not reachable - a network share that
     doesn't answer given up after 20 s). A remote installation works through a Windows share over Tailscale (README).
+    A Help button: the home PC + laptop case step by step - once, before leaving, back home, the laptop used at home.
 
 ## [0.1.1] - 2026-10-13
   ### Add

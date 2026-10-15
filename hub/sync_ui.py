@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from nicegui import run, ui
 
 from hub import config
+from hub.help_sync import help_sync
 from hub import lite_sync as S
 from hub.i18n import t
 
@@ -229,10 +230,23 @@ class SyncView:
                         ui.button(t("sy_compare"), on_click=lambda f=folder: self.compare_with(f)) \
                             .props("dense flat no-caps")
 
+    def show_help(self) -> None:
+        ui.add_css(".sync-help h2 { font-size: 1.35rem; line-height: 1.3; margin: 0.4rem 0 0.6rem; }"
+                   ".sync-help h3 { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 0.3rem; }")
+        with self.page.dialog_host, ui.dialog() as dialog, \
+                ui.card().classes("w-full max-w-3xl").style("max-height: 85vh"):
+            with ui.scroll_area().classes("w-full").style("height: 70vh"):
+                ui.markdown(help_sync()).classes("w-full sync-help")
+            with ui.row().classes("w-full justify-end"):
+                ui.button(t("close"), on_click=dialog.close).props("flat")
+        dialog.open()
+
     @ui.refreshable
     def render(self) -> None:
         with ui.column().classes("w-full gap-3"):
-            ui.label(t("sy_intro")).classes("text-sm text-gray-600")
+            with ui.row().classes("w-full items-start gap-2 no-wrap"):
+                ui.label(t("sy_intro")).classes("text-sm text-gray-600 flex-1")
+                ui.button(t("sy_help"), icon="help_outline", on_click=self.show_help).props("flat dense no-caps")
             self._startup_lines()
             options = self._options()
             with ui.row().classes("w-full items-end gap-3 flex-wrap"):
