@@ -24,6 +24,8 @@
     instance: name, type, access, address, port, shared folder, with a Check (Dwarfium Lite answers, its Dwarfs, the
     folder reachable). The Synchronize tab's folders are the instances' shared folders (the ones added before become
     instances). A Help button: this PC, adding an instance, Tailscale (MagicDNS, sharing and firewall).
+    Access "Both" for a laptop or mini PC sometimes at home, sometimes away: its home address asked first, then its
+    Tailscale one; the card goes to the band where it answered ("reached through Tailscale").
 
 ## [0.1.1] - 2026-10-13
   ### Add
