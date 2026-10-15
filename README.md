@@ -37,9 +37,20 @@ The **Dwarfs** tab shows the Dwarfs of both applications side by side. Linked, a
 
 Dwarfium Lite reads its Dwarfs when it starts: its side is only changed while it is stopped, and only the lines concerned (`dwarfium_id`, `dwarfium_base_url` in `config_*.ini`, `DWARF_IP`, the name in `devices.json`). Scope Archive's database is copied to `db/dwarf_backup.db.hub` before the hub's first change.
 
+## Installations
+
+The **Installations** tab is a map of the Dwarfium Lite installations you use. The hub runs on the home PC (or a home server): it installs and starts Dwarfium Lite there, and Scope Archive if you want it. Every other Dwarfium Lite - a source run for testing, a laptop, a mini PC next to the Dwarfs - is an **instance**: the hub doesn't start it, it shows it and synchronizes with it.
+
+- **A card per installation**, on the *home network* or *away (Tailscale)*: Dwarfium Lite running (its version), stopped (the computer answers, not Dwarfium Lite) or unreachable; its Dwarfs (connected, capturing, a program waiting to be sent); how it stands against this PC (the startup check of the Synchronize tab) with a **Compare** button; **Open** it in the browser.
+- **The same Dwarf connected to two installations** is shown in red: a Dwarf is driven by one Dwarfium Lite at a time.
+- **+ Add an instance** / ✎: name, type (source / laptop / mini PC / other), access (home network / Tailscale), address (IP, computer name, Tailscale MagicDNS name or `100.x` IP, `localhost` for a source run on this PC), port (8090), shared folder (`\\laptop\AstroDwarfSession`, for the synchronization). **Check** asks the instance (`/api/app-info`, `/api/dwarfs` - Dwarfium Lite listens on the network) and opens the folder. Only an address or a folder is needed.
+- The states are asked again every 20 s while the tab is shown. The folders of the Synchronize tab are the instances' shared folders (the ones added before this became instances).
+
+A **Help** button explains the setup step by step, Tailscale included (install on both machines, MagicDNS name, sharing and the Windows firewall for the Tailscale network).
+
 ## Synchronize
 
-The **Synchronize** tab merges two Dwarfium Lite installations both ways: the hub's own, a source run, a laptop taken to the field, a mini PC (add its folder through a Windows share, `\\minipc\folder`).
+The **Synchronize** tab merges two Dwarfium Lite installations both ways: the hub's own, a source run, a laptop taken to the field, a mini PC (add its folder through a Windows share, `\\minipc\folder` - or give it to the instance in the Installations tab).
 
 - **Dwarfs** — a Dwarf one side lacks is copied there (its `config_*.py` / `.ini`, its programs). The same Dwarf is recognized by its ID, even under another config name (`config_d3` here, `config_dwarf3` there); its name and IP are left as they are on each side.
 - **Programs** — found by their uuid. One missing on a side is copied; at two stages, the most advanced wins (Done / Error over Current over ToDo), the latest written at the same stage. A program to run copied to the other side is flagged: run it from one installation only.

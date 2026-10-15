@@ -15,6 +15,15 @@
     differs, a line per folder in the tab (the same / n changes with Compare / not reachable - a network share that
     doesn't answer given up after 20 s). A remote installation works through a Windows share over Tailscale (README).
     A Help button: the home PC + laptop case step by step - once, before leaving, back home, the laptop used at home.
+    ### Installations tab
+    A map of the Dwarfium Lite installations: this PC (the hub's Dwarfium Lite and Scope Archive) and the instances
+    added there (source run, laptop, mini PC), on the home network or away through Tailscale. Each card: Dwarfium
+    Lite running with its version, stopped or unreachable (asked live, /api/app-info and /api/dwarfs, every 20 s while
+    the tab is shown); its Dwarfs (connected, capturing, program waiting); its synchronization with this PC and a
+    Compare button; Open in the browser. A Dwarf connected to two installations shown in red. Add / change an
+    instance: name, type, access, address, port, shared folder, with a Check (Dwarfium Lite answers, its Dwarfs, the
+    folder reachable). The Synchronize tab's folders are the instances' shared folders (the ones added before become
+    instances). A Help button: this PC, adding an instance, Tailscale (MagicDNS, sharing and firewall).
 
 ## [0.1.1] - 2026-10-13
   ### Add

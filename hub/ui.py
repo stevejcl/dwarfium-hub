@@ -16,8 +16,9 @@ from pathlib import Path
 
 from nicegui import app, run, ui
 
-from hub import config, installer, releases, runner
+from hub import config, installer, instances, releases, runner
 from hub.dwarfs_ui import DwarfsView
+from hub.installations_ui import InstallationsView
 from hub.sync_ui import SyncView
 from hub.apps import APPS, AppSpec, exe_name
 from hub.i18n import language, set_language, system_language, t
@@ -322,10 +323,14 @@ START_GAP_S = 5     # between the apps of "Start both"
 class HubPage:
     def __init__(self):
         self.cfg = config.load()
+        if instances.migrate(self.cfg):
+            config.save(self.cfg)
         set_language(self.cfg.get("language") or system_language())
         self.cards = [AppCard(self, spec) for spec in APPS]
         self.dwarfs = DwarfsView(self)
         self.sync = SyncView(self)
+        self.installations = InstallationsView(self)
+        self.current_tab = "apps"
 
     def card(self, app_id: str) -> AppCard:
         return next(c for c in self.cards if c.spec.id == app_id)
@@ -418,8 +423,10 @@ class HubPage:
                 ui.button(t("change"), on_click=self.change_root).props("flat dense")
             with ui.tabs(on_change=self.tab_changed).classes("w-full").props("align=left") as tabs:
                 apps_tab = ui.tab("apps", t("tab_apps"), icon="apps")
+                ui.tab("installations", t("tab_installations"), icon="hub")
                 ui.tab("dwarfs", t("tab_dwarfs"), icon="satellite_alt")
                 ui.tab("sync", t("tab_sync"), icon="sync_alt")
+            self.tabs = tabs
             with ui.tab_panels(tabs, value=apps_tab).classes("w-full bg-transparent"):
                 with ui.tab_panel("apps").classes("p-0 gap-4"):
                     for card in self.cards:
@@ -429,6 +436,8 @@ class HubPage:
                         ui.button(t("stop_both"), icon="stop_circle", on_click=self.stop_both) \
                             .props("flat color=negative")
                     ui.label(t("data_safe")).classes("text-xs text-gray-500")
+                with ui.tab_panel("installations").classes("p-0"):
+                    self.installations.render()
                 with ui.tab_panel("dwarfs").classes("p-0"):
                     self.dwarfs.render()
                 with ui.tab_panel("sync").classes("p-0"):
@@ -440,8 +449,12 @@ class HubPage:
         ui.timer(0.1, self.watch_running, once=True)
         ui.timer(2, self.sync.check_at_startup, once=True)
         ui.timer(3, self.watch_running)
+        ui.timer(20, self.installations.tick)
 
     async def tab_changed(self, e) -> None:
+        self.current_tab = e.value
+        if e.value == "installations":
+            await self.installations.refresh_status()
         if e.value == "dwarfs":
             await self.dwarfs.reload()
 
@@ -459,6 +472,7 @@ class HubPage:
                 if await card.update_state() and not (card.busy or card.launching):
                     card.render.refresh()
                     self.dwarfs.render.refresh()    # Dwarfium Lite running or not: its buttons
+                    self.installations.render.refresh()
                     if not self.sync.busy:
                         self.sync.render.refresh()
         finally:
