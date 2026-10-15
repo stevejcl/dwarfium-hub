@@ -50,10 +50,23 @@ The card then shows the instance live, wherever it is, and the shared folder `\\
 
 **Scope Archive seen from that instance**: in its Dwarfium Lite, give Scope Archive's address with this PC's Tailscale name (`http://pc-name:8080`, Scope Archive started with LAN access) - it answers at home and away, nothing to change when the computer moves.
 
+### The Dwarfs of a remote site, from home (FTP)
+
+The Dwarfium Lite of the remote computer drives its Dwarfs on its own network: nothing more is needed for that. But **Scope Archive on this PC** downloads a Dwarf's images by **FTP** from the Dwarf itself: from home, the Dwarf (e.g. `192.168.88.21` on the site's Wi-Fi) is only reachable if the remote computer lets Tailscale through to its network - a **subnet router**:
+
+1. On the remote computer, in a terminal opened as administrator:
+   `tailscale set --advertise-routes=192.168.88.0/24` (the site's network: the Dwarf's IP with `.0/24` at the end - the card's tooltip gives it).
+2. In the [Tailscale admin console](https://login.tailscale.com/admin/machines): that computer → *Edit route settings* → tick the route.
+3. On this PC (Windows / macOS) the routes are used by default; on Linux: `tailscale set --accept-routes`.
+
+The site's network must not be the same as the home one (two `192.168.0.x` networks can't be told apart): give the site's box or router another range if needed.
+
+On the cards, each connected Dwarf has an **FTP** badge: green, this PC reaches its FTP; red, it doesn't (the tooltip says what to do). It is asked every 5 minutes, and again with the ⟳ button or **Check**. In Scope Archive, give that Dwarf its IP on the site's network.
+
 ### What the cards show
 
 - ● running, with its version - ○ stopped (the computer answers, Dwarfium Lite doesn't) - ☁ unreachable (off, other network, Tailscale down).
-- Its Dwarfs: connected, capturing, or only known; a clock when a program waits to be sent.
+- Its Dwarfs: connected, capturing, or only known; a clock when a program waits to be sent; FTP reached from this PC or not.
 - The synchronization with this PC (checked when the hub starts) and a **Compare** button.
 - **Open**: that Dwarfium Lite in your browser.
 """,
@@ -101,10 +114,23 @@ La carte montre alors l'instance en direct, où qu'elle soit, et le dossier part
 
 **Scope Archive vu depuis cette instance** : dans son Dwarfium Lite, indiquez l'adresse de Scope Archive avec le nom Tailscale de ce PC (`http://nom-du-pc:8080`, Scope Archive démarré avec l'accès réseau) - elle répond à la maison comme ailleurs, rien à changer quand l'ordinateur se déplace.
 
+### Les Dwarfs d'un site distant, depuis la maison (FTP)
+
+Le Dwarfium Lite de l'ordinateur distant pilote ses Dwarfs sur son propre réseau : rien de plus n'est nécessaire pour cela. Mais **Scope Archive sur ce PC** télécharge les images d'un Dwarf par **FTP**, directement depuis le Dwarf : depuis la maison, le Dwarf (par exemple `192.168.88.21` sur le Wi-Fi du site) n'est joignable que si l'ordinateur distant laisse passer Tailscale vers son réseau - un **routeur de sous-réseau** :
+
+1. Sur l'ordinateur distant, dans un terminal ouvert en administrateur :
+   `tailscale set --advertise-routes=192.168.88.0/24` (le réseau du site : l'IP du Dwarf terminée par `.0/24` - l'info-bulle de la carte la donne).
+2. Dans la [console d'administration Tailscale](https://login.tailscale.com/admin/machines) : cet ordinateur → *Edit route settings* → cochez la route.
+3. Sur ce PC (Windows / macOS) les routes sont utilisées par défaut ; sous Linux : `tailscale set --accept-routes`.
+
+Le réseau du site ne doit pas être le même que celui de la maison (deux réseaux `192.168.0.x` ne peuvent pas être distingués) : donnez si besoin une autre plage à la box ou au routeur du site.
+
+Sur les cartes, chaque Dwarf connecté a un badge **FTP** : vert, ce PC joint son FTP ; rouge, il ne le joint pas (l'info-bulle dit quoi faire). Il est vérifié toutes les 5 minutes, et à nouveau avec le bouton ⟳ ou **Vérifier**. Dans Scope Archive, donnez à ce Dwarf son IP sur le réseau du site.
+
 ### Ce que montrent les cartes
 
 - ● actif, avec sa version - ○ arrêté (l'ordinateur répond, pas Dwarfium Lite) - ☁ injoignable (éteint, autre réseau, Tailscale arrêté).
-- Ses Dwarfs : connecté, en capture, ou seulement connu ; une horloge quand un programme attend d'être envoyé.
+- Ses Dwarfs : connecté, en capture, ou seulement connu ; une horloge quand un programme attend d'être envoyé ; FTP joint depuis ce PC ou non.
 - La synchronisation avec ce PC (vérifiée au démarrage du hub) et un bouton **Comparer**.
 - **Ouvrir** : ce Dwarfium Lite dans votre navigateur.
 """,

@@ -81,14 +81,15 @@ class InstallationsView:
             return self.last_via.get(inst["id"], I.LAN)
         return I.TAILSCALE if inst.get("access") == I.TAILSCALE else I.LAN
 
-    async def refresh_status(self) -> None:
+    async def refresh_status(self, fresh: bool = False) -> None:
+        """fresh (the refresh button): the Dwarfs' FTP asked again too."""
         if self.refreshing:
             return
         self.refreshing = True
         try:
-            jobs = [self._one(i["id"], I.status_of, i) for i in self._instances()]
+            jobs = [self._one(i["id"], I.status_of, i, fresh) for i in self._instances()]
             if self.lite.running:
-                jobs.append(self._one(HOME, I.status, "127.0.0.1", self.lite.port))
+                jobs.append(self._one(HOME, I.status, "127.0.0.1", self.lite.port, fresh))
             else:
                 self.status.pop(HOME, None)
             await asyncio.gather(*jobs)
@@ -132,7 +133,20 @@ class InstallationsView:
                 ui.label(t(f"in_state_{st.state}", port=port)).classes("text-gray-600")
 
     @staticmethod
-    def _dwarf_lines(st: I.Status | None) -> None:
+    def _ftp_badge(d: I.Dwarf, remote: bool) -> None:
+        if d.ftp is None:
+            return
+        badge = ui.label("FTP").classes("text-[10px] font-semibold px-1 rounded shrink-0 "
+                                        + ("bg-green-100 text-green-800" if d.ftp else "bg-red-100 text-red-800"))
+        if d.ftp:
+            badge.tooltip(t("in_ftp_ok", ip=d.ip))
+        elif remote:
+            badge.tooltip(t("in_ftp_route", ip=d.ip, net=I.subnet_of(d.ip)))
+        else:
+            badge.tooltip(t("in_ftp_bad", ip=d.ip))
+
+    @classmethod
+    def _dwarf_lines(cls, st: I.Status | None) -> None:
         if st is None or st.state != I.ACTIVE:
             return
         if not st.dwarfs:
@@ -153,6 +167,7 @@ class InstallationsView:
                 ui.label(d.name).classes("truncate")
                 ui.label(I.short_uid(d.uid)).classes("font-mono text-xs text-gray-500")
                 ui.label("— " + state).classes("text-gray-600 truncate")
+                cls._ftp_badge(d, st.via == I.TAILSCALE)
                 if d.pending:
                     ui.icon("schedule_send", color="primary", size="xs").tooltip(t("in_dw_pending"))
 
@@ -237,7 +252,7 @@ class InstallationsView:
         with ui.column().classes("w-full gap-3"):
             with ui.row().classes("w-full items-start gap-2 no-wrap"):
                 ui.label(t("in_intro")).classes("text-sm text-gray-600 flex-1")
-                ui.button(icon="refresh", on_click=self.refresh_status).props("flat dense round") \
+                ui.button(icon="refresh", on_click=lambda: self.refresh_status(fresh=True)).props("flat dense round") \
                     .tooltip(t("in_refresh"))
                 ui.button(t("sy_help"), icon="help_outline", on_click=self.show_help).props("flat dense no-caps")
             for name, where in self._double_connections():
@@ -382,7 +397,7 @@ class InstallationsView:
         pairs = I.addresses(data)
         for via, host in pairs:
             try:
-                st = await asyncio.wait_for(run.io_bound(I.status, host, port), _STATUS_TIMEOUT_S)
+                st = await asyncio.wait_for(run.io_bound(I.status, host, port, True), _STATUS_TIMEOUT_S)
             except asyncio.TimeoutError:
                 st = I.Status(I.UNREACHABLE)
             addr = f"{host}:{port}" + (f" ({t('in_addr_' + via)})" if len(pairs) > 1 else "")
@@ -390,6 +405,12 @@ class InstallationsView:
                 connected = sum(1 for d in st.dwarfs if d.connected)
                 lines.append((True, t("in_chk_lite_ok", addr=addr, v=st.version) + " - "
                               + t("in_chk_dwarfs", n=len(st.dwarfs), c=connected)))
+                for d in st.dwarfs:
+                    if d.ftp is True:
+                        lines.append((True, t("in_chk_ftp_ok", name=d.name, ip=d.ip)))
+                    elif d.ftp is False:
+                        key = "in_chk_ftp_route" if via == I.TAILSCALE else "in_chk_ftp_bad"
+                        lines.append((False, t(key, name=d.name, ip=d.ip, net=I.subnet_of(d.ip))))
             else:
                 lines.append((False, t(f"in_chk_{st.state}", addr=addr)))
         if not pairs:

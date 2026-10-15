@@ -26,6 +26,9 @@
     instances). A Help button: this PC, adding an instance, Tailscale (MagicDNS, sharing and firewall).
     Access "Both" for a laptop or mini PC sometimes at home, sometimes away: its home address asked first, then its
     Tailscale one; the card goes to the band where it answered ("reached through Tailscale").
+    FTP badge on each connected Dwarf: its FTP (what Scope Archive downloads from) reached from this PC or not -
+    asked every 5 minutes, again with the refresh button or Check; for a Dwarf on a remote site, the Tailscale
+    subnet route to add (its network in the tooltip, the steps in the Help).
 
 ## [0.1.1] - 2026-10-13
   ### Add
