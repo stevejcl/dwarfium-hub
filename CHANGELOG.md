@@ -19,7 +19,7 @@
     A map of the Dwarfium Lite installations: this PC (the hub's Dwarfium Lite and Scope Archive) and the instances
     added there (source run, laptop, mini PC), on the home network or away through Tailscale. Each card: Dwarfium
     Lite running with its version, stopped or unreachable (asked live, /api/app-info and /api/dwarfs, every 20 s while
-    the tab is shown); its Dwarfs (connected, capturing, program waiting); its synchronization with this PC and a
+    the tab is shown); its Dwarfs (connected, busy, connecting, program waiting); its synchronization with this PC and a
     Compare button; Open in the browser. A Dwarf connected to two installations shown in red. Add / change an
     instance: name, type, access, address, port, shared folder, with a Check (Dwarfium Lite answers, its Dwarfs, the
     folder reachable). The Synchronize tab's folders are the instances' shared folders (the ones added before become
@@ -29,6 +29,9 @@
     FTP badge on each connected Dwarf: its FTP (what Scope Archive downloads from) reached from this PC or not -
     asked every 5 minutes, again with the refresh button or Check; for a Dwarf on a remote site, the Tailscale
     subnet route to add (its network in the tooltip, the steps in the Help).
+    Help "Troubleshooting the network": a name giving "network path not found" while the IP works (resolved to a
+    local IPv6 address) - the full Tailscale name or the IP instead; PowerShell tests (ports 445 and 8090,
+    tailscale status); firewall, mapped drive, fixed home IP.
 
 ## [0.1.1] - 2026-10-13
   ### Add

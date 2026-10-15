@@ -41,7 +41,7 @@ Dwarfium Lite reads its Dwarfs when it starts: its side is only changed while it
 
 The **Installations** tab is a map of the Dwarfium Lite installations you use. The hub runs on the home PC (or a home server): it installs and starts Dwarfium Lite there, and Scope Archive if you want it. Every other Dwarfium Lite - a source run for testing, a laptop, a mini PC next to the Dwarfs - is an **instance**: the hub doesn't start it, it shows it and synchronizes with it.
 
-- **A card per installation**, on the *home network* or *away (Tailscale)*: Dwarfium Lite running (its version), stopped (the computer answers, not Dwarfium Lite) or unreachable; its Dwarfs (connected, capturing, a program waiting to be sent); how it stands against this PC (the startup check of the Synchronize tab) with a **Compare** button; **Open** it in the browser.
+- **A card per installation**, on the *home network* or *away (Tailscale)*: Dwarfium Lite running (its version), stopped (the computer answers, not Dwarfium Lite) or unreachable; its Dwarfs (connected, busy - a command or a capture running -, connecting, a program waiting to be sent); how it stands against this PC (the startup check of the Synchronize tab) with a **Compare** button; **Open** it in the browser.
 - **The same Dwarf connected to two installations** is shown in red: a Dwarf is driven by one Dwarfium Lite at a time.
 - **+ Add an instance** / ✎: name, type (release - the official version, downloaded / dev - run from the source / laptop / mini PC / other), access (home network / Tailscale), address (IP, computer name, Tailscale MagicDNS name or `100.x` IP, `localhost` for a source run on this PC), port (8090), shared folder (`\\laptop\AstroDwarfSession`, for the synchronization). **Check** asks the instance (`/api/app-info`, `/api/dwarfs` - Dwarfium Lite listens on the network) and opens the folder. Only an address or a folder is needed.
 - **Both** (a laptop or mini PC sometimes at home, sometimes away): a home network address and a Tailscale address. The home one is asked first, then the Tailscale one; the card goes to the band where it answered. From such an instance, Scope Archive is best given with this PC's Tailscale name (`http://pc-name:8080`, started with LAN access): it answers at home and away.
@@ -49,6 +49,8 @@ The **Installations** tab is a map of the Dwarfium Lite installations you use. T
 - The states are asked again every 20 s while the tab is shown. The folders of the Synchronize tab are the instances' shared folders (the ones added before this became instances).
 
 A **Help** button explains the setup step by step, Tailscale included (install on both machines, MagicDNS name, sharing and the Windows firewall for the Tailscale network).
+
+**Troubleshooting** — "network path not found" with a computer's name while its IP works: Windows resolved the name to another address (often a local IPv6 one, `fe80::...`). Use the full Tailscale name (`\\pc-name.tailXXXX.ts.net\share`) or the IP (`\\100.x.y.z\share`, it never changes). In PowerShell, `Test-NetConnection <ip> -Port 445` (sharing) and `-Port 8090` (Dwarfium Lite) tell what is reachable; `tailscale status` lists the Tailscale names. The Help of the tab has the details.
 
 ## Synchronize
 

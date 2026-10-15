@@ -155,8 +155,13 @@ class InstallationsView:
         ui.label(t("in_dwarfs")).classes("text-xs text-gray-500 mt-1")
         for d in st.dwarfs:
             with ui.row().classes("items-center gap-1 no-wrap text-sm"):
-                if d.busy:
-                    ui.icon("motion_photos_on", color="orange", size="xs")
+                # busy is "a command in flight" - the connection attempt
+                # itself included (Dwarfium Lite reconnecting at startup)
+                if d.busy and not d.connected:
+                    ui.icon("hourglass_top", color="grey", size="xs")
+                    state = t("in_dw_connecting")
+                elif d.busy:
+                    ui.icon("motion_photos_on", color="orange", size="xs").tooltip(t("in_dw_busy_hint"))
                     state = t("in_dw_busy")
                 elif d.connected:
                     ui.icon("circle", color="positive", size="xs")
