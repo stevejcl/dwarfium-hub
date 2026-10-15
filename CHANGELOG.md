@@ -19,7 +19,7 @@
     A map of the Dwarfium Lite installations: this PC (the hub's Dwarfium Lite and Scope Archive) and the instances
     added there (source run, laptop, mini PC), on the home network or away through Tailscale. Each card: Dwarfium
     Lite running with its version, stopped or unreachable (asked live, /api/app-info and /api/dwarfs, every 20 s while
-    the tab is shown); its Dwarfs (connected, capturing, program waiting); its synchronization with this PC and a
+    the tab is shown); its Dwarfs (connected, busy, connecting, program waiting); its synchronization with this PC and a
     Compare button; Open in the browser. A Dwarf connected to two installations shown in red. Add / change an
     instance: name, type, access, address, port, shared folder, with a Check (Dwarfium Lite answers, its Dwarfs, the
     folder reachable). The Synchronize tab's folders are the instances' shared folders (the ones added before become

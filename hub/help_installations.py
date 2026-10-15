@@ -86,7 +86,7 @@ Tests, in PowerShell on this PC:
 ### What the cards show
 
 - ● running, with its version - ○ stopped (the computer answers, Dwarfium Lite doesn't) - ☁ unreachable (off, other network, Tailscale down).
-- Its Dwarfs: connected, capturing, or only known; a clock when a program waits to be sent; FTP reached from this PC or not.
+- Its Dwarfs: connected, busy (a command or a capture running), connecting, or only known; a clock when a program waits to be sent; FTP reached from this PC or not.
 - The synchronization with this PC (checked when the hub starts) and a **Compare** button.
 - **Open**: that Dwarfium Lite in your browser.
 """,
@@ -170,7 +170,7 @@ Tests, dans PowerShell sur ce PC :
 ### Ce que montrent les cartes
 
 - ● actif, avec sa version - ○ arrêté (l'ordinateur répond, pas Dwarfium Lite) - ☁ injoignable (éteint, autre réseau, Tailscale arrêté).
-- Ses Dwarfs : connecté, en capture, ou seulement connu ; une horloge quand un programme attend d'être envoyé ; FTP joint depuis ce PC ou non.
+- Ses Dwarfs : connecté, occupé (commande ou capture en cours), en connexion, ou seulement connu ; une horloge quand un programme attend d'être envoyé ; FTP joint depuis ce PC ou non.
 - La synchronisation avec ce PC (vérifiée au démarrage du hub) et un bouton **Comparer**.
 - **Ouvrir** : ce Dwarfium Lite dans votre navigateur.
 """,
