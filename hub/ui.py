@@ -336,7 +336,14 @@ class HubPage:
     def card(self, app_id: str) -> AppCard:
         return next(c for c in self.cards if c.spec.id == app_id)
 
+    def closed(self) -> bool:
+        """This page's browser client is gone (window reloaded or closed) -
+        what a long background task finishes with has nowhere to go."""
+        return self.dialog_host.is_deleted
+
     def notify(self, *args, **kwargs) -> None:
+        if self.closed():
+            return
         with self.dialog_host:
             ui.notify(*args, **kwargs)
 
