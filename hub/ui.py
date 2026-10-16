@@ -23,6 +23,7 @@ from hub.sync_ui import SyncView
 from hub.apps import APPS, AppSpec, exe_name
 from hub.i18n import language, set_language, system_language, t
 from hub.app_version import get_version
+from hub.logo import LOGO_SVG
 
 
 class AppCard:
@@ -412,9 +413,11 @@ class HubPage:
         set_language(self.cfg.get("language") or system_language())
         with ui.column().classes("w-full max-w-4xl mx-auto p-4 gap-4"):
             with ui.row().classes("items-center justify-between w-full"):
-                with ui.column().classes("gap-0"):
-                    ui.label(f"Dwarfium-Hub {get_version()}").classes("text-2xl font-bold")
-                    ui.label(t("subtitle")).classes("text-gray-500")
+                with ui.row().classes("items-center gap-3 no-wrap"):
+                    ui.html(LOGO_SVG, sanitize=False).classes("w-12 h-12 shrink-0")  # our own constant
+                    with ui.column().classes("gap-0"):
+                        ui.label(f"Dwarfium-Hub {get_version()}").classes("text-2xl font-bold")
+                        ui.label(t("subtitle")).classes("text-gray-500")
                 ui.toggle({"en": "EN", "fr": "FR"}, value=language(), on_change=lambda e: self.set_language(e.value)) \
                     .props("dense")
             with ui.row().classes("items-center gap-2 text-sm"):

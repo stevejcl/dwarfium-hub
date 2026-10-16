@@ -14,6 +14,10 @@
     device_prefs.json). A Dwarf's display, when the other side doesn't have that Dwarf, is ticked with the Dwarf's
     own copy (unticking the Dwarf unticks it); not proposed for a Dwarf neither side has any more.
   ### Add
+    ### Logo
+    Dwarfium-Hub's own logo: the Dwarf's lens - the hub - linked to the installations it looks after (the green one:
+    Scope Archive), on the night-blue disc of Dwarfium Lite's icon. The executable's icon (DwarfiumHub.ico), the
+    window's favicon (instead of 🔭) and next to the page's title.
     ### Synchronize tab
     Two Dwarfium Lite installations merged both ways - the hub's, a source run, a laptop's, a mini PC's through a
     Windows share (folders added here, kept in hub_config.json). Dwarfs a side lacks (config files and programs),

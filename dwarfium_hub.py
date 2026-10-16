@@ -46,6 +46,7 @@ def main() -> None:
 
     from hub import ui as hub_ui
     from hub.app_version import get_version
+    from hub.logo import LOGO_SVG
 
     hub_ui.register()
     if sys.platform == "win32":
@@ -62,7 +63,7 @@ def main() -> None:
         host="127.0.0.1",
         port=args.port or _free_port(),
         reload=False,
-        favicon="🔭",
+        favicon=LOGO_SVG,
         **window,
     )
 
