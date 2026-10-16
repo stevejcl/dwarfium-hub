@@ -66,6 +66,8 @@ class InstallationsView:
         try:
             st = await asyncio.wait_for(run.io_bound(call, *args), _STATUS_TIMEOUT_S)
         except asyncio.TimeoutError:
+            st = None
+        if st is None:      # also what run.io_bound gives when wait_for's timeout cancelled it
             st = I.Status(I.UNREACHABLE)
         self.status[key] = st
         if st.via:
@@ -404,6 +406,8 @@ class InstallationsView:
             try:
                 st = await asyncio.wait_for(run.io_bound(I.status, host, port, True), _STATUS_TIMEOUT_S)
             except asyncio.TimeoutError:
+                st = None
+            if st is None:      # run.io_bound's answer to a cancelled call
                 st = I.Status(I.UNREACHABLE)
             addr = f"{host}:{port}" + (f" ({t('in_addr_' + via)})" if len(pairs) > 1 else "")
             if st.state == I.ACTIVE:
@@ -422,7 +426,7 @@ class InstallationsView:
             lines.append((None, t("in_chk_no_host")))
         if data["share"]:
             try:
-                ok = await asyncio.wait_for(run.io_bound(I.share_ok, data["share"]), _SHARE_TIMEOUT_S)
+                ok = bool(await asyncio.wait_for(run.io_bound(I.share_ok, data["share"]), _SHARE_TIMEOUT_S))
             except asyncio.TimeoutError:
                 ok = False
             lines.append((ok, t("in_chk_share_ok" if ok else "in_chk_share_bad", path=data["share"])))

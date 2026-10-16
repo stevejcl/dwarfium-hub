@@ -143,7 +143,8 @@ class SyncView:
                 n = await asyncio.wait_for(run.io_bound(self._count_changes, folder), _CHECK_TIMEOUT_S)
             except (asyncio.TimeoutError, S.SyncError, OSError):
                 n = UNREACHABLE
-            self.startup[folder] = n
+            # run.io_bound gives None when wait_for's timeout cancelled it
+            self.startup[folder] = UNREACHABLE if n is None else n
         differing = [f for f, n in self.startup.items() if n > 0]
         if differing:
             self.page.notify(t("sy_startup_notice", names=", ".join(self._label(f) for f in differing)),
@@ -200,6 +201,8 @@ class SyncView:
                 return
         try:
             result = await run.io_bound(S.apply, a, b, self.actions)
+            if result is None:      # the hub closing meanwhile
+                return
             self.page.notify(t("sy_done", n=result["done"]) + "\n" + t("sy_backups", paths="\n".join(result["backups"])),
                              type="positive", multi_line=True, timeout=15000)
         except (S.SyncError, OSError) as e:

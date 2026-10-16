@@ -13,6 +13,10 @@
     "Preferences - missing" said nothing: now "Dashboard display - missing - hidden, position 2" (Dwarfium Lite's
     device_prefs.json). A Dwarf's display, when the other side doesn't have that Dwarf, is ticked with the Dwarf's
     own copy (unticking the Dwarf unticks it); not proposed for a Dwarf neither side has any more.
+    ### Startup: "'>' not supported between instances of 'NoneType' and 'int'"
+    A shared folder not answering within 20 s at the hub's startup check (computer off, Tailscale down): NiceGUI's
+    run.io_bound, cancelled by the timeout, gives None instead of raising - the check then failed. None now counts
+    as not reachable there, in the Installations states and Check, and in Synchronize / Identify.
   ### Add
     ### Logo
     Dwarfium-Hub's own logo: the Dwarf's lens - the hub - linked to the installations it looks after (the green one:

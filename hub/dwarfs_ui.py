@@ -264,6 +264,7 @@ class DwarfsView:
             result = await run.io_bound(lite_api.identify, self._remote_port(), ip, self.remote.host)
         else:
             result = await run.io_bound(lite_api.identify, self.lite.port, ip)
+        result = result or "failed"     # None: the call cancelled (the hub closing)
         self.page.notify(t(f"identify_{result}", ip=ip), type="positive" if result == "ok" else "warning",
                          multi_line=True)
 
