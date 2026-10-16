@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3] - 2026-10-16
+  ### BugFix
+    ### Startup: "The client this element belongs to has been deleted"
+    The window reloaded or closed while the startup check of the shared folders was still running (up to 20 s per
+    folder not answering): its notice then had no page left to show in. Dropped silently now; any notice of the hub
+    is skipped when its page is gone.
+
 ## [0.1.2] - 2026-10-16
   ### BugFix
     ### Windows: ConnectionResetError at exit

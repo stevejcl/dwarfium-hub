@@ -145,6 +145,8 @@ class SyncView:
                 n = UNREACHABLE
             # run.io_bound gives None when wait_for's timeout cancelled it
             self.startup[folder] = UNREACHABLE if n is None else n
+        if self.page.closed():
+            return      # the window reloaded or closed during the check: nothing left to show it in
         differing = [f for f, n in self.startup.items() if n > 0]
         if differing:
             self.page.notify(t("sy_startup_notice", names=", ".join(self._label(f) for f in differing)),
