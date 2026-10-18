@@ -23,6 +23,27 @@ def _free_port(start: int = 8790, end: int = 8899) -> int:
     return 0
 
 
+# The Applications tab without a scrollbar, both cards with their update /
+# rollback buttons and the watchdog's lines, plus the title bar (user-requested)
+WINDOW_WIDTH, WINDOW_HEIGHT = 1000, 1050
+
+
+def _window_height(wanted: int = WINDOW_HEIGHT) -> int:
+    """At most the screen's height without the taskbar (Windows' work
+    area): a window taller than the screen can't be seen whole."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            rect = wintypes.RECT()
+            # SPI_GETWORKAREA = 0x0030
+            if ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):
+                return max(600, min(wanted, rect.bottom - rect.top))
+        except Exception:
+            pass
+    return wanted
+
+
 def _suppress_benign_proactor_noise(loop: asyncio.AbstractEventLoop, context: dict) -> None:
     """Windows: a connection the window or browser already reset (closing
     the hub, a page reloaded) makes asyncio's Proactor loop print
@@ -62,9 +83,8 @@ def main() -> None:
         app.on_startup(lambda: asyncio.get_running_loop().set_exception_handler(_suppress_benign_proactor_noise))
     native = not args.no_native
     # window_size alone turns native mode on: only given with a window
-    # 980 high: both applications' cards (909 px) + the title bar, with room for an
-    # update / rollback button wrapping, without a scrollbar
-    window = {"native": True, "window_size": (1000, 980)} if native else {"native": False, "show": True}
+    window = ({"native": True, "window_size": (WINDOW_WIDTH, _window_height())} if native
+              else {"native": False, "show": True})
     if native and args.minimized:
         app.native.window_args["minimized"] = True
     ui.run(
