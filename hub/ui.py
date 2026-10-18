@@ -1,6 +1,7 @@
 """The hub's page: one card per application (installed / latest version,
-install - update - rollback, start - stop, port, folder), and both apps
-started or stopped together.
+install - update - rollback, start - stop, port, folder, start with the
+hub / restart - hub/watchdog.py), and both apps started or stopped
+together.
 
 Network, download and install run in worker threads (run.io_bound): the
 window never freezes.
@@ -16,7 +17,7 @@ from pathlib import Path
 
 from nicegui import app, run, ui
 
-from hub import config, installer, instances, releases, runner
+from hub import autorun, config, installer, instances, releases, runner, watchdog
 from hub.dwarfs_ui import DwarfsView
 from hub.installations_ui import InstallationsView
 from hub.sync_ui import SyncView
@@ -51,12 +52,11 @@ class AppCard:
 
     @property
     def folder(self) -> Path:
-        path = self.settings.get("path")
-        return Path(path) if path else Path(self.page.cfg["install_root"]) / self.spec.folder
+        return config.app_folder(self.page.cfg, self.spec)
 
     @property
     def port(self) -> int:
-        return int(self.settings.get("port") or self.spec.default_port)
+        return config.app_port(self.page.cfg, self.spec)
 
     def installed(self) -> bool:
         return (self.folder / exe_name(self.spec)).is_file()
@@ -220,7 +220,16 @@ class AppCard:
 
     @property
     def lan(self) -> bool:
-        return bool(self.spec.lan_args) and bool(self.settings.get("lan"))
+        return config.app_lan(self.page.cfg, self.spec)
+
+    def set_flag(self, key: str, value: bool) -> None:
+        """Start with the hub (autostart) / restart when it stopped by
+        itself (restart) - hub/watchdog.py."""
+        self.settings[key] = bool(value)
+        config.save(self.page.cfg)
+        if key == "restart" and value:
+            watchdog.forgive(self.spec.id)
+        self.render.refresh()
 
     def set_lan(self, value: bool) -> None:
         self.settings["lan"] = bool(value)
@@ -316,6 +325,15 @@ class AppCard:
                 if self.spec.lan_args:
                     ui.checkbox(t("lan"), value=self.lan, on_change=lambda e: self.set_lan(e.value)) \
                         .tooltip(t("lan_hint"))
+            if installed:
+                with ui.row().classes("items-center gap-4"):
+                    ui.checkbox(t("autostart"), value=bool(self.settings.get("autostart")),
+                                on_change=lambda e: self.set_flag("autostart", e.value)).tooltip(t("autostart_hint"))
+                    ui.checkbox(t("auto_restart"), value=bool(self.settings.get("restart")),
+                                on_change=lambda e: self.set_flag("restart", e.value)).tooltip(t("auto_restart_hint"))
+                note = watchdog.status(self.spec.id)
+                if note:
+                    ui.label(note).classes("text-xs " + ("text-negative" if watchdog.gave_up(self.spec.id) else "text-gray-500"))
 
 
 START_GAP_S = 5     # between the apps of "Start both"
@@ -377,6 +395,12 @@ class HubPage:
             if card.installed():
                 await card.stop()
 
+    def set_autorun(self, e) -> None:
+        try:
+            autorun.set_enabled(bool(e.value))
+        except OSError as err:
+            ui.notify(t("failed", e=err), type="negative")
+
     def set_language(self, lang: str) -> None:
         self.cfg["language"] = lang
         config.save(self.cfg)
@@ -431,6 +455,11 @@ class HubPage:
                 ui.label(f"{t('install_root')} :")
                 self.root_label = ui.label(self.cfg["install_root"]).classes("font-mono")
                 ui.button(t("change"), on_click=self.change_root).props("flat dense")
+            if autorun.supported():
+                # Windows: the hub at the session's opening, which starts the
+                # applications ticked "Start with the hub"
+                ui.checkbox(t("hub_autorun"), value=autorun.enabled(), on_change=self.set_autorun) \
+                    .tooltip(t("hub_autorun_hint")).classes("text-sm")
             with ui.tabs(on_change=self.tab_changed).classes("w-full").props("align=left") as tabs:
                 apps_tab = ui.tab("apps", t("tab_apps"), icon="apps")
                 ui.tab("installations", t("tab_installations"), icon="hub")

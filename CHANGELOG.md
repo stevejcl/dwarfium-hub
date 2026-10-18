@@ -1,6 +1,16 @@
 # Changelog
 
 ## [0.1.3] - 2026-10-16
+  ### Add
+    ### Launcher and watchdog
+    Each application's card: "Start with the hub" (started when the hub starts) and "Restart automatically"
+    (started again when it stops by itself - a crash, a non-zero exit code; not when its window is closed nor when
+    it is stopped from the hub: Stop, an update, Synchronize). At most 3 restarts within 10 min, then it gives up
+    until the box is ticked again - shown on the card with the last thing done ("restarted at 21:00 (exit code 1)").
+    Windows: "Start the hub with Windows" (the session's Run key, no administrator rights; the built hub only) - the
+    hub then opens minimized and starts the applications ticked. It runs in the hub's process: a reloaded window
+    doesn't stop it; the hub closed, nothing is watched (the applications keep running). Only an application the hub
+    started can be restarted (one started by hand gives no exit code).
   ### BugFix
     ### Startup: "The client this element belongs to has been deleted"
     The window reloaded or closed while the startup check of the shared folders was still running (up to 20 s per

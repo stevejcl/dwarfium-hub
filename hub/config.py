@@ -4,7 +4,8 @@ folder when run from source), written atomically.
 {
   "install_root": "C:/Dwarfium",
   "language": "fr",
-  "apps": {"scope_archive": {"path": "C:/Dwarfium/DwarfiumScopeArchive", "port": 8080}, ...}
+  "apps": {"scope_archive": {"path": "C:/Dwarfium/DwarfiumScopeArchive", "port": 8080,
+                             "autostart": true, "restart": true}, ...}
 }
 """
 from __future__ import annotations
@@ -59,3 +60,16 @@ def save(data: dict) -> None:
 
 def app_settings(data: dict, app_id: str) -> dict:
     return data["apps"].setdefault(app_id, {})
+
+
+def app_folder(data: dict, spec) -> Path:
+    path = app_settings(data, spec.id).get("path")
+    return Path(path) if path else Path(data["install_root"]) / spec.folder
+
+
+def app_port(data: dict, spec) -> int:
+    return int(app_settings(data, spec.id).get("port") or spec.default_port)
+
+
+def app_lan(data: dict, spec) -> bool:
+    return bool(spec.lan_args) and bool(app_settings(data, spec.id).get("lan"))
