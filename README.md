@@ -15,6 +15,7 @@ One place to **install, update and start** the applications of the Dwarfium fami
 - **Existing installations** — *Use an existing installation* adopts a folder installed by hand instead of reinstalling it (its data stays where it is); its version is read from the application the first time it runs.
 - **Start / stop** — each application starts from its own folder on a **fixed port** (Scope Archive 8080, Dwarfium Lite 8090, editable), alone or both together (started side by side, a few seconds apart; two applications can't be given the same port); closing the hub leaves them running. The hub asks the port which application answers (`/api/app-info`): another program on that port is shown as such, and the application isn't started over it.
 - **LAN access** — Scope Archive can be started reachable from the other devices of the network (`--lan`); Dwarfium Lite always is.
+- **Launcher and watchdog** — per application, *Start with the hub* and *Restart automatically*: started again when it stops by itself (a crash, a non-zero exit code; not a closed window, not a stop from the hub), at most 3 times within 10 min. On Windows, *Start the hub with Windows* (the session's Run key, window minimized): after a restart and the session opened, the hub starts the applications ticked. The hub is the watchdog: closed, nothing is watched.
 - English / French.
 
 ## Dwarfs
