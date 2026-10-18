@@ -19,6 +19,7 @@ from nicegui import app, run, ui
 
 from hub import autorun, config, installer, instances, releases, runner, watchdog
 from hub.dwarfs_ui import DwarfsView
+from hub.help_apps import help_apps
 from hub.installations_ui import InstallationsView
 from hub.sync_ui import SyncView
 from hub.apps import APPS, AppSpec, exe_name
@@ -395,6 +396,17 @@ class HubPage:
             if card.installed():
                 await card.stop()
 
+    def show_apps_help(self) -> None:
+        ui.add_css(".sync-help h2 { font-size: 1.35rem; line-height: 1.3; margin: 0.4rem 0 0.6rem; }"
+                   ".sync-help h3 { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 0.3rem; }")
+        with self.dialog_host, ui.dialog() as dialog, \
+                ui.card().classes("w-full max-w-3xl").style("max-height: 85vh"):
+            with ui.scroll_area().classes("w-full").style("height: 70vh"):
+                ui.markdown(help_apps()).classes("w-full sync-help")
+            with ui.row().classes("w-full justify-end"):
+                ui.button(t("close"), on_click=dialog.close).props("flat")
+        dialog.open()
+
     def set_autorun(self, e) -> None:
         try:
             autorun.set_enabled(bool(e.value))
@@ -474,6 +486,8 @@ class HubPage:
                         ui.button(t("start_both"), icon="play_circle", on_click=self.start_both).props("color=positive")
                         ui.button(t("stop_both"), icon="stop_circle", on_click=self.stop_both) \
                             .props("flat color=negative")
+                        ui.button(t("sy_help"), icon="help_outline", on_click=self.show_apps_help) \
+                            .props("flat dense no-caps")
                     ui.label(t("data_safe")).classes("text-xs text-gray-500")
                 with ui.tab_panel("installations").classes("p-0"):
                     self.installations.render()
