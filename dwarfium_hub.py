@@ -3,6 +3,7 @@
 
     python dwarfium_hub.py              # native window
     python dwarfium_hub.py --no_native  # in a browser (http://127.0.0.1:<port>)
+    python dwarfium_hub.py --minimized  # window minimized (started with Windows)
 """
 from __future__ import annotations
 
@@ -40,6 +41,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Dwarfium-Hub")
     parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--no_native", action="store_true", help="open in a browser instead of a window")
+    # Started with Windows (hub/autorun.py): its window minimized
+    parser.add_argument("--minimized", action="store_true", help="open the window minimized")
     args, _ = parser.parse_known_args()
 
     from nicegui import ui
@@ -49,15 +52,21 @@ def main() -> None:
     from hub.logo import LOGO_SVG
 
     hub_ui.register()
+    from nicegui import app, background_tasks
+    from hub import watchdog
+    # Starts the applications ticked "Start with the hub", then restarts the
+    # ones that stopped by themselves - in the hub's process, not its page
+    app.on_startup(lambda: background_tasks.create(watchdog.watch(), name="hub-watchdog"))
     if sys.platform == "win32":
         # On the running loop: there is none before ui.run() starts it
-        from nicegui import app
         app.on_startup(lambda: asyncio.get_running_loop().set_exception_handler(_suppress_benign_proactor_noise))
     native = not args.no_native
     # window_size alone turns native mode on: only given with a window
     # 980 high: both applications' cards (909 px) + the title bar, with room for an
     # update / rollback button wrapping, without a scrollbar
     window = {"native": True, "window_size": (1000, 980)} if native else {"native": False, "show": True}
+    if native and args.minimized:
+        app.native.window_args["minimized"] = True
     ui.run(
         title=f"Dwarfium-Hub {get_version()}",
         host="127.0.0.1",

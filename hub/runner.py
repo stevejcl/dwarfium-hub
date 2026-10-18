@@ -21,6 +21,9 @@ import requests
 from hub.apps import AppSpec, exe_name
 
 _procs: dict[str, subprocess.Popen] = {}
+# Exit code of an app the hub started that ended by itself (not stopped
+# from the hub): read by the watchdog (hub/watchdog.py)
+_exits: dict[str, int] = {}
 
 
 def port_in_use(port: int, host: str = "127.0.0.1") -> bool:
@@ -53,6 +56,7 @@ def probe(app: AppSpec, port: int) -> Probe:
     proc = _procs.get(app.id)
     if proc is not None and proc.poll() is not None:
         _procs.pop(app.id, None)
+        _exits[app.id] = proc.returncode
     if not port_in_use(port):
         return Probe(STARTING if started_by_hub(app) else STOPPED)
     try:
@@ -73,12 +77,19 @@ def probe(app: AppSpec, port: int) -> Probe:
     return Probe(OTHER)
 
 
+def take_exit(app: AppSpec) -> int | None:
+    """The exit code of the app the hub started, once, when it ended by
+    itself since the last call (seen by probe()); None otherwise."""
+    return _exits.pop(app.id, None)
+
+
 def started_by_hub(app: AppSpec) -> bool:
     proc = _procs.get(app.id)
     return proc is not None and proc.poll() is None
 
 
 def start(app: AppSpec, folder: Path, port: int, lan: bool = False) -> None:
+    _exits.pop(app.id, None)            # an earlier run's: not this one's
     exe = folder / exe_name(app)
     if not exe.is_file():
         raise FileNotFoundError(f"{exe} not found")
