@@ -323,11 +323,13 @@ class AppCard:
                 ui.number(t("port"), value=self.port, min=1024, max=65535, format="%d",
                           validation={t("port_taken"): lambda v: not self.page.port_clash(self, v)},
                           on_change=lambda e: self.set_port(e.value)).classes("w-16").props("dense no-error-icon")
-                if self.spec.lan_args:
-                    ui.checkbox(t("lan"), value=self.lan, on_change=lambda e: self.set_lan(e.value)) \
-                        .tooltip(t("lan_hint"))
             if installed:
+                # LAN access with the start options, on one line (user-
+                # requested: a shorter page)
                 with ui.row().classes("items-center gap-4"):
+                    if self.spec.lan_args:
+                        ui.checkbox(t("lan"), value=self.lan, on_change=lambda e: self.set_lan(e.value)) \
+                            .tooltip(t("lan_hint"))
                     ui.checkbox(t("autostart"), value=bool(self.settings.get("autostart")),
                                 on_change=lambda e: self.set_flag("autostart", e.value)).tooltip(t("autostart_hint"))
                     ui.checkbox(t("auto_restart"), value=bool(self.settings.get("restart")),
