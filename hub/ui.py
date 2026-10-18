@@ -261,6 +261,11 @@ class AppCard:
         dialog.open()
 
     # ── view ──────────────────────────────────────────────────────────────
+    def _port_field(self) -> None:
+        ui.number(t("port"), value=self.port, min=1024, max=65535, format="%d",
+                  validation={t("port_taken"): lambda v: not self.page.port_clash(self, v)},
+                  on_change=lambda e: self.set_port(e.value)).classes("w-16").props("dense no-error-icon")
+
     @ui.refreshable_method
     def render(self) -> None:
         installed, version = self.installed(), self.installed_version()
@@ -313,20 +318,22 @@ class AppCard:
                         start.set_enabled(not other)
                         if other:
                             start.tooltip(t("port_other_hint"))
-                    ui.button(t("open_folder"), icon="folder", on_click=self.open_folder).props("flat")
+                    # An icon: the row of buttons on one line (a shorter page)
+                    ui.button(icon="folder", on_click=self.open_folder).props("flat round") \
+                        .tooltip(t("open_folder"))
                     previous = installer.has_backup(self.folder)
                     if previous:
                         label = t("rollback", v=previous) if previous != "?" else t("rollback_previous")
                         ui.button(label, icon="undo", on_click=self.rollback).props("flat")
                 if rel:
                     ui.button(t("whats_new"), icon="article", on_click=self.show_notes).props("flat")
-                ui.number(t("port"), value=self.port, min=1024, max=65535, format="%d",
-                          validation={t("port_taken"): lambda v: not self.page.port_clash(self, v)},
-                          on_change=lambda e: self.set_port(e.value)).classes("w-16").props("dense no-error-icon")
+                if not installed:
+                    self._port_field()
             if installed:
                 # LAN access with the start options, on one line (user-
                 # requested: a shorter page)
                 with ui.row().classes("items-center gap-4"):
+                    self._port_field()
                     if self.spec.lan_args:
                         ui.checkbox(t("lan"), value=self.lan, on_change=lambda e: self.set_lan(e.value)) \
                             .tooltip(t("lan_hint"))
@@ -465,15 +472,16 @@ class HubPage:
                         ui.label(t("subtitle")).classes("text-gray-500")
                 ui.toggle({"en": "EN", "fr": "FR"}, value=language(), on_change=lambda e: self.set_language(e.value)) \
                     .props("dense")
-            with ui.row().classes("items-center gap-2 text-sm"):
+            with ui.row().classes("items-center gap-2 text-sm w-full"):
                 ui.label(f"{t('install_root')} :")
                 self.root_label = ui.label(self.cfg["install_root"]).classes("font-mono")
                 ui.button(t("change"), on_click=self.change_root).props("flat dense")
-            if autorun.supported():
-                # Windows: the hub at the session's opening, which starts the
-                # applications ticked "Start with the hub"
-                ui.checkbox(t("hub_autorun"), value=autorun.enabled(), on_change=self.set_autorun) \
-                    .tooltip(t("hub_autorun_hint")).classes("text-sm")
+                if autorun.supported():
+                    # Windows: the hub at the session's opening, which starts the
+                    # applications ticked "Start with the hub" - on this line,
+                    # a shorter page (user-requested)
+                    ui.checkbox(t("hub_autorun"), value=autorun.enabled(), on_change=self.set_autorun) \
+                        .tooltip(t("hub_autorun_hint")).classes("text-sm ml-auto")
             with ui.tabs(on_change=self.tab_changed).classes("w-full").props("align=left") as tabs:
                 apps_tab = ui.tab("apps", t("tab_apps"), icon="apps")
                 ui.tab("installations", t("tab_installations"), icon="hub")

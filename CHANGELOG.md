@@ -12,7 +12,10 @@
     doesn't stop it; the hub closed, nothing is watched (the applications keep running). Only an application the hub
     started can be restarted (one started by hand gives no exit code).
     The Applications tab has a Help button too (install / update / rollback, start / stop, the launcher and watchdog).
-    Scope Archive's card: LAN access with the two start options on one line (was a line of its own), a shorter page.
+    The Applications tab without a scrollbar (user-requested): the port and the checkboxes on one line, the folder
+    button an icon (tooltip "Open folder") - the buttons fit on one line even with Update / Back to / What's new -,
+    "Start the hub with Windows" on the install folder's line, and the window 1050 high (980 before), at most the
+    screen's height without the taskbar on Windows.
   ### BugFix
     ### Startup: "The client this element belongs to has been deleted"
     The window reloaded or closed while the startup check of the shared folders was still running (up to 20 s per
