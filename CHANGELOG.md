@@ -12,6 +12,7 @@
     doesn't stop it; the hub closed, nothing is watched (the applications keep running). Only an application the hub
     started can be restarted (one started by hand gives no exit code).
     The Applications tab has a Help button too (install / update / rollback, start / stop, the launcher and watchdog).
+    Scope Archive's card: LAN access with the two start options on one line (was a line of its own), a shorter page.
   ### BugFix
     ### Startup: "The client this element belongs to has been deleted"
     The window reloaded or closed while the startup check of the shared folders was still running (up to 20 s per
