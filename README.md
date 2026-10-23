@@ -1,5 +1,7 @@
 # Dwarfium-Hub
 
+> 🌌 **This project is part of the [Dwarfium Lite Suite](https://stevejcl.github.io/Dwarfium-Lite-Suite/)** — Dwarfium Hub, Dwarfium Lite and Dwarfium Scope Archive. The complete documentation (get started, "I want to…" recipes, reference) is here: **[stevejcl.github.io/Dwarfium-Lite-Suite](https://stevejcl.github.io/Dwarfium-Lite-Suite/)**
+
 One place to **install, update and start** the applications of the Dwarfium family:
 
 | Application | What it does |
@@ -74,6 +76,8 @@ The **Synchronize** tab merges two Dwarfium Lite installations both ways: the hu
 Download `DwarfiumHub-<Windows|Linux|macOS>.zip` from the [releases](https://github.com/stevejcl/dwarfium-hub/releases), unzip it anywhere and run `DwarfiumHub`. The applications are installed in `C:\Dwarfium` on Windows, `~/Dwarfium` elsewhere — **Change** at the top of the hub picks another folder.
 
 ## Run from source
+
+Python 3.12+.
 
 ```bash
 pip install -r requirements.txt
