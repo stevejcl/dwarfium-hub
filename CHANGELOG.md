@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.4] - 2026-11-02
+  ### Add
+    ### Launcher and watchdog:
+    Start the applications with the hub, restart them after a crash; the hub with Windows
+    Help of the Applications tab (with the launcher and watchdog); README
+    ### Application card
+    Application card: LAN access on the same line as the start options
+    Applications tab without a scrollbar: a more compact card, the window 1050 high
+    Part of the Dwarfium Lite Suite: link the documentation, Python 3.12+
+    Add Windows app window focus control
+
+  ### BugFix
+    ### Startup: Startup check: no error when the window reloaded or closed meanwhile
+
 ## [0.1.3] - 2026-10-16
   ### Add
     ### Launcher and watchdog
