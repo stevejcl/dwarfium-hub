@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 class AppSpec:
     id: str
     name: str                      # shown in the hub
+    win_name: str                  # real name of the app
     repo: str                      # GitHub owner/name
     asset_prefix: str              # <asset_prefix>-<OS>.zip
     exe: str                       # executable name, without .exe
@@ -46,6 +47,7 @@ APPS: tuple[AppSpec, ...] = (
     AppSpec(
         id="scope_archive",
         name="Dwarfium Scope Archive",
+        win_name="Dwarfium Scope Archive",
         repo="stevejcl/dwarfium-scope-archive",
         asset_prefix="DwarfiumScopeArchive",
         exe="DwarfiumScopeArchive",
@@ -59,6 +61,7 @@ APPS: tuple[AppSpec, ...] = (
     AppSpec(
         id="astro_dwarf_session",
         name="Dwarfium Lite (Astro Dwarf Session)",
+        win_name="Astro Dwarf Session",
         repo="stevejcl/astro_dwarf_session",
         asset_prefix="AstroDwarfUI",
         exe="AstroDwarfUI",

@@ -219,6 +219,19 @@ class AppCard:
         config.save(self.page.cfg)
         self.render.refresh()
 
+    def _is_started_by_hub(self) -> bool:
+        """Check whether the process is currently being followed and is active in the hub."""
+        proc = getattr(runner, "_procs", {}).get(self.spec.id)
+        return proc is not None and proc.poll() is None
+
+    async def bring_to_front(self) -> None:
+        success = await run.io_bound(
+            runner.bring_to_front, self.spec
+        )
+
+        if not success:
+            self.notify("Application window not found", type="warning")
+
     @property
     def lan(self) -> bool:
         return config.app_lan(self.page.cfg, self.spec)
@@ -279,7 +292,13 @@ class AppCard:
                     ui.label(self.spec.name).classes("text-lg font-semibold")
                     ui.label(t(f"desc_{self.spec.id}")).classes("text-sm text-gray-500")
                 if running:
-                    ui.badge(t("running", port=self.port), color="positive").classes("text-sm")
+                    if sys.platform.startswith("win") or self._is_started_by_hub():
+                        ui.button(
+                            t("show_app"),
+                            icon="open_in_new",
+                            on_click=self.bring_to_front
+                        ).props("color=primary")
+                        ui.badge(t("running", port=self.port), color="positive").classes("text-sm")
                 elif starting:
                     with ui.badge(color="info").classes("text-sm items-center gap-1"):
                         ui.spinner(size="xs", color="white")
