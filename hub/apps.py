@@ -45,6 +45,20 @@ class AppSpec:
 
 APPS: tuple[AppSpec, ...] = (
     AppSpec(
+        id="hub",
+        name="Dwarfium Hub",
+        win_name="Dwarfium Hub",
+        repo="stevejcl/dwarfium-hub",
+        asset_prefix="DwarfiumHub",
+        exe="DwarfiumHub",
+        default_port=0,
+        folder="DwarfiumHub",
+        app_key="",
+        legacy_probe=None,
+        lan_args=None,
+        description="Dwarfium Hub",
+    ),
+    AppSpec(
         id="scope_archive",
         name="Dwarfium Scope Archive",
         win_name="Dwarfium Scope Archive",

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.5] - 2026-11-06
+  ### Add
+    Add self-update support for the hub
+    Add hub update and rollback flows with staged installs, backups, and a detached restart helper.
+    Integrate update controls into the header and preserve managed app processes across hub restarts.
+
 ## [0.1.4] - 2026-11-02
   ### Add
     ### Launcher and watchdog:

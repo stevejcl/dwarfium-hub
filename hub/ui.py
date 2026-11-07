@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,12 +18,12 @@ from pathlib import Path
 
 from nicegui import app, run, ui
 
-from hub import autorun, config, installer, instances, releases, runner, watchdog
+from hub import autorun, config, installer, instances, releases, runner, selfupdate, watchdog
 from hub.dwarfs_ui import DwarfsView
 from hub.help_apps import help_apps
 from hub.installations_ui import InstallationsView
 from hub.sync_ui import SyncView
-from hub.apps import APPS, AppSpec, exe_name
+from hub.apps import APPS, APPS_BY_ID, AppSpec, exe_name
 from hub.i18n import language, set_language, system_language, t
 from hub.app_version import get_version
 from hub.logo import LOGO_SVG
@@ -53,6 +54,12 @@ class AppCard:
 
     @property
     def folder(self) -> Path:
+        # The hub is where it runs from (packaged build), not where the
+        # config says: that is the folder an update must replace
+        if self.spec.id == "hub":
+            running_from = selfupdate.install_dir()
+            if running_from is not None:
+                return running_from
         return config.app_folder(self.page.cfg, self.spec)
 
     @property
@@ -63,6 +70,8 @@ class AppCard:
         return (self.folder / exe_name(self.spec)).is_file()
 
     def installed_version(self) -> str | None:
+        if self.spec.id == "hub":
+            return get_version()        # the running hub knows its own version
         return installer.installed_version(self.folder)
 
     @property
@@ -97,9 +106,108 @@ class AppCard:
             self.release_error = "" if self.release.asset_url else t("no_asset")
         except Exception:
             self.release, self.release_error = None, t("no_network")
-        self.render.refresh()
+        self.refresh_view()
+
+    def refresh_view(self) -> None:
+        """The hub has no card: its state is shown in the page's header."""
+        if self.spec.id == "hub":
+            self.page.hub_update.refresh()
+        else:
+            self.render.refresh()
 
     # ── actions ───────────────────────────────────────────────────────────
+    async def _confirm_hub(self, title: str, text: str, button: str) -> bool:
+        with self.page.dialog_host, ui.dialog() as dialog, ui.card().classes("min-w-[420px]"):
+            ui.label(title).classes("text-lg font-semibold")
+            ui.label(text)
+            with ui.row().classes("justify-end w-full"):
+                ui.button(t("cancel"), on_click=lambda: dialog.submit(False)).props("flat")
+                ui.button(button, on_click=lambda: dialog.submit(True))
+        return bool(await dialog)
+
+    async def update_hub(self) -> None:
+        """The hub replaces its own files: it can't while it runs, so it
+        downloads and extracts the release, starts a detached script
+        (selfupdate.py) that waits for it to exit, copies the files and
+        starts the new hub."""
+        rel = self.release
+        if not rel or not rel.asset_url:
+            return
+        if not selfupdate.can_self_update():
+            self.notify(t("hub_self_source"), type="warning", multi_line=True)
+            return
+        if not await self._confirm_hub(t("hub_update_title", v=rel.version), t("hub_update_text"),
+                                       t("hub_update_btn")):
+            return
+        self.busy, self.progress_value, self.progress_text = True, 0, t("downloading", v=rel.version)
+        self.refresh_view()
+        work = Path(tempfile.mkdtemp(prefix="dwarfium_hub_update_"))
+        stage = work / "stage"
+        try:
+            zip_path = work / f"{self.spec.asset_prefix}.zip"
+
+            def on_download(done, total):
+                self.progress_value = done / total if total else 0
+            await run.io_bound(installer.download, rel.asset_url, zip_path, rel.sha256, on_download)
+            self.progress_text, self.progress_value = t("installing"), 0
+
+            def on_extract(done, total):
+                self.progress_value = done / total if total else 0
+            await run.io_bound(selfupdate.extract_zip, zip_path, stage, exe_name(self.spec), on_extract)
+            zip_path.unlink(missing_ok=True)
+            # What the update replaces goes to .hub_backup/ (rollback), and
+            # only then does the relay script take over
+            await run.io_bound(selfupdate.make_backup, stage, self.folder, get_version())
+            await self._restart_into(work, stage)
+        except Exception as e:
+            self._abort_hub_job(work, e)
+            return
+        await self._exit_for_relay()
+
+    async def _restart_into(self, work: Path, stage: Path, remove=(), drop_backup: bool = False) -> None:
+        self.progress_text, self.progress_value = t("hub_restarting"), 1
+        await run.io_bound(selfupdate.apply_and_restart, work, stage, exe_name(self.spec), remove, drop_backup)
+
+    def _abort_hub_job(self, work: Path, error: Exception) -> None:
+        shutil.rmtree(work, ignore_errors=True)
+        self.busy = False
+        self.notify(t("failed", e=error), type="negative", multi_line=True)
+        self.refresh_view()
+
+    async def _exit_for_relay(self) -> None:
+        # The apps keep running (detached): leave their PIDs for the next hub
+        handoff = selfupdate.handoff_path()
+        if handoff is not None:
+            try:
+                runner.save_handoff(handoff)
+            except OSError as e:
+                print(f"[hub] handoff not written: {e!r}")      # the apps just won't be taken over
+        # The relay script now waits for this process to end
+        await asyncio.sleep(1)
+        app.shutdown()
+
+    async def rollback_hub(self) -> None:
+        """Back to the version before the last update (.hub_backup/): the
+        same relay as the update, since the running exe can't be replaced."""
+        if not selfupdate.can_self_update():
+            self.notify(t("hub_self_source"), type="warning", multi_line=True)
+            return
+        previous = installer.has_backup(self.folder) or "?"
+        if not await self._confirm_hub(t("hub_rollback_title", v=previous), t("hub_rollback_text"),
+                                       t("hub_rollback_btn")):
+            return
+        self.busy, self.progress_value, self.progress_text = True, 0, t("installing")
+        self.refresh_view()
+        work = Path(tempfile.mkdtemp(prefix="dwarfium_hub_rollback_"))
+        stage = work / "stage"
+        try:
+            remove = await run.io_bound(selfupdate.prepare_rollback, self.folder, stage)
+            await self._restart_into(work, stage, remove, drop_backup=True)
+        except Exception as e:
+            self._abort_hub_job(work, e)
+            return
+        await self._exit_for_relay()
+
     async def install_or_update(self) -> None:
         rel = self.release
         if not rel or not rel.asset_url:
@@ -136,6 +244,9 @@ class AppCard:
             self.render.refresh()
 
     async def rollback(self) -> None:
+        if self.spec.id == "hub":
+            await self.rollback_hub()
+            return
         await self.update_state()
         if self.active:
             self.notify(t("stop_first", name=self.spec.name), type="warning")
@@ -286,24 +397,25 @@ class AppCard:
         running, other = state == runner.RUNNING, state == runner.OTHER
         starting = state == runner.STARTING
         rel = self.release
+        is_dwarfium_Hub = True if self.spec.name == "Dwarfium Hub" else False
         with ui.card().classes("w-full"):
             with ui.row().classes("items-start justify-between w-full"):
                 with ui.column().classes("gap-0"):
                     ui.label(self.spec.name).classes("text-lg font-semibold")
                     ui.label(t(f"desc_{self.spec.id}")).classes("text-sm text-gray-500")
                 if running:
-                    if sys.platform.startswith("win") or self._is_started_by_hub():
-                        ui.button(
-                            t("show_app"),
-                            icon="open_in_new",
-                            on_click=self.bring_to_front
-                        ).props("color=primary")
+                        if not is_dwarfium_Hub and (sys.platform.startswith("win") or self._is_started_by_hub()):
+                            ui.button(
+                                t("show_app"),
+                                icon="open_in_new",
+                                on_click=self.bring_to_front
+                            ).props("color=primary")
                         ui.badge(t("running", port=self.port), color="positive").classes("text-sm")
                 elif starting:
                     with ui.badge(color="info").classes("text-sm items-center gap-1"):
                         ui.spinner(size="xs", color="white")
                         ui.label(t("starting"))
-                elif other:
+                elif other and not is_dwarfium_Hub:
                     ui.badge(t("port_other", port=self.port), color="warning").classes("text-sm") \
                         .tooltip(t("port_other_hint"))
                 elif installed and state is None:
@@ -322,14 +434,21 @@ class AppCard:
             with ui.row().classes("items-center gap-2 flex-wrap"):
                 can_get = rel is not None and rel.asset_url is not None
                 if not installed:
-                    ui.button(t("install"), icon="download", on_click=self.install_or_update).set_enabled(can_get)
+                    if self.spec.id != "hub":
+                        ui.button(t("install"), icon="download", on_click=self.install_or_update).set_enabled(can_get)
                     ui.button(t("adopt"), icon="folder_open", on_click=self.adopt).props("flat")
                 else:
                     # An app that updates itself (hub_updates=False) is only started here
                     if self.spec.hub_updates and can_get and releases.is_newer(rel.version, version):
-                        ui.button(t("update", v=rel.version), icon="system_update", on_click=self.install_or_update)
+                        if self.spec.id == "hub":
+                            ui.button(t("update", v=rel.version), icon="system_update", on_click=self.update_hub)
+                        else:
+                            ui.button(t("update", v=rel.version), icon="system_update", on_click=self.install_or_update)
                     elif self.spec.hub_updates and can_get:
-                        ui.button(t("reinstall"), icon="refresh", on_click=self.install_or_update).props("flat")
+                        if self.spec.id == "hub":
+                            ui.button(t("reinstall"), icon="refresh", on_click=self.update_hub).props("flat")
+                        else:
+                            ui.button(t("reinstall"), icon="refresh", on_click=self.install_or_update).props("flat")
                     if running or starting:
                         ui.button(t("stop"), icon="stop", on_click=self.stop).props("color=negative")
                     else:
@@ -348,7 +467,7 @@ class AppCard:
                     ui.button(t("whats_new"), icon="article", on_click=self.show_notes).props("flat")
                 if not installed:
                     self._port_field()
-            if installed:
+            if installed and not is_dwarfium_Hub:
                 # LAN access with the start options, on one line (user-
                 # requested: a shorter page)
                 with ui.row().classes("items-center gap-4"):
@@ -374,14 +493,56 @@ class HubPage:
         if instances.migrate(self.cfg):
             config.save(self.cfg)
         set_language(self.cfg.get("language") or system_language())
-        self.cards = [AppCard(self, spec) for spec in APPS]
+        handoff = selfupdate.handoff_path()     # apps left running by the hub that just updated itself
+        if handoff is not None:
+            runner.adopt_handoff(handoff)
+        # The hub itself has no card: it is always running, "Start both" /
+        # "Stop both" must not touch it, and its version and update live in
+        # the header (hub_update). self.cards = the applications it manages.
+        self.hub_card = AppCard(self, APPS_BY_ID["hub"])
+        self.cards = [AppCard(self, spec) for spec in APPS if spec.id != "hub"]
         self.dwarfs = DwarfsView(self)
         self.sync = SyncView(self)
         self.installations = InstallationsView(self)
         self.current_tab = "apps"
 
     def card(self, app_id: str) -> AppCard:
-        return next(c for c in self.cards if c.spec.id == app_id)
+        return next(c for c in (self.hub_card, *self.cards) if c.spec.id == app_id)
+
+    @ui.refreshable_method
+    def hub_update(self) -> None:
+        """Next to the hub's version: up to date / update available (with
+        its progress while it runs), and a menu: what's new, back to the
+        previous version, reinstall."""
+        card = self.hub_card
+        rel = card.release
+        if card.busy:
+            with ui.row().classes("items-center gap-2 no-wrap"):
+                ui.spinner(size="xs")
+                ui.label().classes("text-sm").bind_text_from(card, "progress_text")
+                ui.linear_progress(show_value=False).bind_value_from(card, "progress_value").classes("w-32")
+            return
+        can_get = rel is not None and rel.asset_url is not None
+        newer = can_get and releases.is_newer(rel.version, get_version())
+        previous = installer.has_backup(card.folder)
+        with ui.row().classes("items-center gap-1 no-wrap"):
+            if newer:
+                ui.button(t("update", v=rel.version), icon="system_update", on_click=card.update_hub) \
+                    .props("dense no-caps color=primary size=sm")
+            elif rel is not None and can_get:
+                ui.icon("check_circle", color="positive", size="xs")
+                ui.label(t("up_to_date")).classes("text-xs text-gray-500")
+            else:
+                ui.label(card.release_error or t("checking")).classes("text-xs text-gray-500")
+            if rel is not None or previous:
+                with ui.button(icon="more_vert").props("flat dense round size=sm"), ui.menu():
+                    if rel is not None:
+                        ui.menu_item(t("whats_new"), on_click=card.show_notes)
+                    if can_get and not newer:
+                        ui.menu_item(t("reinstall"), on_click=card.update_hub)
+                    if previous:
+                        label = t("rollback", v=previous) if previous != "?" else t("rollback_previous")
+                        ui.menu_item(label, on_click=card.rollback)
 
     def closed(self) -> bool:
         """This page's browser client is gone (window reloaded or closed) -
@@ -487,7 +648,9 @@ class HubPage:
                 with ui.row().classes("items-center gap-3 no-wrap"):
                     ui.html(LOGO_SVG, sanitize=False).classes("w-12 h-12 shrink-0")  # our own constant
                     with ui.column().classes("gap-0"):
-                        ui.label(f"Dwarfium-Hub {get_version()}").classes("text-2xl font-bold")
+                        with ui.row().classes("items-center gap-3"):
+                            ui.label(f"Dwarfium-Hub {get_version()}").classes("text-2xl font-bold")
+                            self.hub_update()
                         ui.label(t("subtitle")).classes("text-gray-500")
                 ui.toggle({"en": "EN", "fr": "FR"}, value=language(), on_change=lambda e: self.set_language(e.value)) \
                     .props("dense")
@@ -525,9 +688,13 @@ class HubPage:
                 with ui.tab_panel("sync").classes("p-0"):
                     self.sync.render()
         self.dialog_host = ui.element()
-        for card in self.cards:
+        for card in (self.hub_card, *self.cards):
             ui.timer(0.1, card.check_release, once=True)
         self._watching = False
+        note = selfupdate.failure_note()        # a previous update that didn't go through
+        if note:
+            ui.timer(1, lambda: self.notify(t("hub_update_failed", note=note),
+                                            type="warning", multi_line=True), once=True)
         ui.timer(0.1, self.watch_running, once=True)
         ui.timer(2, self.sync.check_at_startup, once=True)
         ui.timer(3, self.watch_running)
