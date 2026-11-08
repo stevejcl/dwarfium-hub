@@ -96,7 +96,21 @@ def main() -> None:
         **window,
     )
 
-
 if __name__ in {"__main__", "__mp_main__"}:
     freeze_support()
-    main()
+    from wsproto.utilities import LocalProtocolError
+    try:
+
+        main()
+
+    except LocalProtocolError:
+        pass    # connection already closed at shutdown: no consequence
+
+    except (KeyboardInterrupt):
+        print("Application closed by user.")
+        
+    except SystemExit:
+        print("Application closed.")
+
+    except Exception as e:
+        print(f"Application closed error detected {e}.")
